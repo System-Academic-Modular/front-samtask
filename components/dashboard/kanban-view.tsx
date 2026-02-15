@@ -1,13 +1,14 @@
 'use client'
 
-import React, { useState, useTransition } from 'react'
-import type { Task, Category, TaskStatus } from '@/lib/types'
+import React, { useMemo, useState, useTransition } from 'react'
+import type { Task, Category, TaskStatus, TeamMember } from '@/lib/types'
 import { updateTask, deleteTask } from '@/lib/actions/tasks'
 import { TaskEditDialog } from './task-edit-dialog'
 import { QuickAddTask } from './quick-add-task'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Kanban, Clock, Calendar, MoreHorizontal, Pencil, Trash2, GripVertical } from 'lucide-react'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Kanban, Calendar, MoreHorizontal, Pencil, Trash2, GripVertical } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +23,8 @@ import confetti from 'canvas-confetti'
 interface KanbanViewProps {
   tasks: Task[]
   categories: Category[]
+  selectedTeamId?: string | null
+  teamMembers?: TeamMember[]
 }
 
 const columns: { id: TaskStatus; title: string; color: string; border: string }[] = [
@@ -30,15 +33,19 @@ const columns: { id: TaskStatus; title: string; color: string; border: string }[
   { id: 'done', title: 'Concluído', color: 'bg-brand-emerald/10', border: 'border-brand-emerald/20' },
 ]
 
-export function KanbanView({ tasks, categories }: KanbanViewProps) {
+export function KanbanView({ tasks, categories, selectedTeamId, teamMembers = [] }: KanbanViewProps) {
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [isPending, startTransition] = useTransition()
   const [draggedTask, setDraggedTask] = useState<Task | null>(null)
 
+  const teamMembersById = useMemo(
+    () => Object.fromEntries(teamMembers.map((member) => [member.user_id, member])),
+    [teamMembers]
+  )
+
   function handleDragStart(e: React.DragEvent, task: Task) {
     setDraggedTask(task)
     e.dataTransfer.effectAllowed = 'move'
-    // Hack para esconder a imagem fantasma padrão se quiser customizar, ou deixa padrão
   }
 
   function handleDragOver(e: React.DragEvent) {
@@ -48,7 +55,7 @@ export function KanbanView({ tasks, categories }: KanbanViewProps) {
 
   function handleDrop(e: React.DragEvent, newStatus: TaskStatus) {
     e.preventDefault()
-    
+
     if (!draggedTask || draggedTask.status === newStatus) {
       setDraggedTask(null)
       return
@@ -56,7 +63,7 @@ export function KanbanView({ tasks, categories }: KanbanViewProps) {
 
     startTransition(async () => {
       const result = await updateTask(draggedTask.id, { status: newStatus })
-      
+
       if (result.error) {
         toast.error('Erro ao mover tarefa')
         return
@@ -96,15 +103,14 @@ export function KanbanView({ tasks, categories }: KanbanViewProps) {
             <Kanban className="w-6 h-6 text-brand-violet" />
             Fluxo Kanban
           </h1>
-          <p className="text-muted-foreground">Arraste para gerenciar o fluxo de trabalho.</p>
+          <p className="text-muted-foreground">{selectedTeamId ? 'Contexto de equipe ativo.' : 'Arraste para gerenciar o fluxo de trabalho.'}</p>
         </div>
       </div>
 
       <div className="shrink-0">
-        <QuickAddTask categories={categories} />
+        <QuickAddTask categories={categories} selectedTeamId={selectedTeamId} teamMembers={teamMembers} />
       </div>
 
-      {/* Grid do Kanban */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 overflow-x-auto pb-4">
         {columns.map((column) => {
           const columnTasks = tasks.filter((t) => t.status === column.id)
@@ -122,11 +128,7 @@ export function KanbanView({ tasks, categories }: KanbanViewProps) {
             >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold text-foreground tracking-wide flex items-center gap-2">
-                  <div className={cn("w-2 h-2 rounded-full", 
-                    column.id === 'todo' ? "bg-slate-400" :
-                    column.id === 'in_progress' ? "bg-brand-violet shadow-[0_0_8px_var(--brand-violet)]" :
-                    "bg-brand-emerald shadow-[0_0_8px_var(--brand-emerald)]"
-                  )} />
+                  <div className={cn('w-2 h-2 rounded-full', column.id === 'todo' ? 'bg-slate-400' : column.id === 'in_progress' ? 'bg-brand-violet shadow-[0_0_8px_var(--brand-violet)]' : 'bg-brand-emerald shadow-[0_0_8px_var(--brand-emerald)]')} />
                   {column.title}
                 </h3>
                 <Badge variant="outline" className="rounded-full border-white/10 bg-black/20 text-xs">
@@ -135,87 +137,92 @@ export function KanbanView({ tasks, categories }: KanbanViewProps) {
               </div>
 
               <div className="space-y-3 flex-1 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white/10">
-                {columnTasks.map((task) => (
-                  <div
-                    key={task.id}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, task)}
-                    className={cn(
-                      'group relative rounded-xl border p-4 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg cursor-grab active:cursor-grabbing',
-                      'bg-card/80 border-white/5 backdrop-blur-md',
-                      task.priority === 'urgent' ? 'border-l-4 border-l-brand-rose hover:shadow-neon-rose/20' : 
-                      task.priority === 'high' ? 'border-l-4 border-l-orange-500 hover:shadow-orange-500/20' :
-                      'hover:border-brand-violet/50 hover:shadow-neon-violet/20',
-                      isPending && draggedTask?.id === task.id && 'opacity-40 rotate-2 scale-95'
-                    )}
-                  >
-                    {/* Header do Card */}
-                    <div className="flex items-start justify-between gap-2 mb-2">
+                {columnTasks.map((task) => {
+                  const assignee = task.assignee_id ? teamMembersById[task.assignee_id] : null
+                  const assigneeInitials = (assignee?.profile?.full_name || 'SM').substring(0, 2).toUpperCase()
+
+                  return (
+                    <div
+                      key={task.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, task)}
+                      className={cn(
+                        'group relative rounded-xl border p-4 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg cursor-grab active:cursor-grabbing',
+                        'bg-card/80 border-white/5 backdrop-blur-md',
+                        task.priority === 'urgent'
+                          ? 'border-l-4 border-l-brand-rose hover:shadow-neon-rose/20'
+                          : task.priority === 'high'
+                            ? 'border-l-4 border-l-orange-500 hover:shadow-orange-500/20'
+                            : 'hover:border-brand-violet/50 hover:shadow-neon-violet/20',
+                        isPending && draggedTask?.id === task.id && 'opacity-40 rotate-2 scale-95'
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-2">
                         {task.category && (
-                          <span 
-                            className="text-[10px] font-bold uppercase tracking-wider"
-                            style={{ color: task.category.color }}
-                          >
+                          <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: task.category.color }}>
                             {task.category.name}
                           </span>
                         )}
-                        
+
                         <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2">
-                            <DropdownMenu>
+                          <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-6 w-6 hover:bg-white/10">
+                              <Button variant="ghost" size="icon" className="h-6 w-6 hover:bg-white/10">
                                 <MoreHorizontal className="h-4 w-4" />
-                                </Button>
+                              </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="bg-slate-950 border-white/10">
-                                <DropdownMenuItem onClick={() => setEditingTask(task)} className="focus:bg-white/10 cursor-pointer">
+                              <DropdownMenuItem onClick={() => setEditingTask(task)} className="focus:bg-white/10 cursor-pointer">
                                 <Pencil className="mr-2 h-4 w-4" />
                                 Editar
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator className="bg-white/10" />
-                                <DropdownMenuItem 
-                                onClick={() => handleDeleteTask(task.id)}
-                                className="text-destructive focus:bg-destructive/10 cursor-pointer"
-                                >
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator className="bg-white/10" />
+                              <DropdownMenuItem onClick={() => handleDeleteTask(task.id)} className="text-destructive focus:bg-destructive/10 cursor-pointer">
                                 <Trash2 className="mr-2 h-4 w-4" />
                                 Excluir
-                                </DropdownMenuItem>
+                              </DropdownMenuItem>
                             </DropdownMenuContent>
-                            </DropdownMenu>
+                          </DropdownMenu>
                         </div>
-                    </div>
+                      </div>
 
-                    <h4 className={cn(
-                      'font-medium text-sm text-foreground leading-snug',
-                      task.status === 'done' && 'line-through text-muted-foreground'
-                    )}>
-                      {task.title}
-                    </h4>
+                      <h4 className={cn('font-medium text-sm text-foreground leading-snug', task.status === 'done' && 'line-through text-muted-foreground')}>
+                        {task.title}
+                      </h4>
 
-                    {/* Footer do Card */}
-                    <div className="flex items-center justify-between mt-4 pt-3 border-t border-white/5">
+                      <div className="flex items-center justify-between mt-4 pt-3 border-t border-white/5">
                         <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                            {task.due_date && (
-                                <span className={cn("flex items-center gap-1", 
-                                    new Date(task.due_date) < new Date() && task.status !== 'done' ? "text-brand-rose font-bold animate-pulse" : ""
-                                )}>
-                                    <Calendar className="w-3 h-3" />
-                                    {new Date(task.due_date).toLocaleDateString('pt-BR').slice(0, 5)}
-                                </span>
-                            )}
+                          {task.due_date && (
+                            <span className={cn('flex items-center gap-1', new Date(task.due_date) < new Date() && task.status !== 'done' ? 'text-brand-rose font-bold animate-pulse' : '')}>
+                              <Calendar className="w-3 h-3" />
+                              {new Date(task.due_date).toLocaleDateString('pt-BR').slice(0, 5)}
+                            </span>
+                          )}
+                          {assignee && (
+                            <Avatar className="h-6 w-6 border border-white/10" title={assignee.profile?.full_name || 'Membro da equipe'}>
+                              <AvatarImage src={assignee.profile?.avatar_url || ''} />
+                              <AvatarFallback className="text-[10px]">{assigneeInitials}</AvatarFallback>
+                            </Avatar>
+                          )}
                         </div>
-                        
-                        {/* Indicador de Prioridade (Bolinha) */}
-                        <div className={cn(
-                            "w-2 h-2 rounded-full",
-                            task.priority === 'urgent' ? "bg-brand-rose shadow-[0_0_5px_var(--brand-rose)]" :
-                            task.priority === 'high' ? "bg-orange-500" :
-                            task.priority === 'medium' ? "bg-yellow-500" :
-                            "bg-slate-600"
-                        )} title={`Prioridade: ${task.priority}`} />
+
+                        <div
+                          className={cn(
+                            'w-2 h-2 rounded-full',
+                            task.priority === 'urgent'
+                              ? 'bg-brand-rose shadow-[0_0_5px_var(--brand-rose)]'
+                              : task.priority === 'high'
+                                ? 'bg-orange-500'
+                                : task.priority === 'medium'
+                                  ? 'bg-yellow-500'
+                                  : 'bg-slate-600'
+                          )}
+                          title={`Prioridade: ${task.priority}`}
+                        />
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
 
                 {columnTasks.length === 0 && (
                   <div className="h-32 flex flex-col items-center justify-center border-2 border-dashed border-white/5 rounded-xl text-muted-foreground/50 text-sm">
@@ -232,6 +239,7 @@ export function KanbanView({ tasks, categories }: KanbanViewProps) {
       <TaskEditDialog
         task={editingTask}
         categories={categories}
+        teamMembers={teamMembers}
         open={!!editingTask}
         onOpenChange={(open) => !open && setEditingTask(null)}
       />

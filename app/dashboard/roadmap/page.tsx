@@ -3,18 +3,32 @@ import { RoadmapView } from '@/components/dashboard/roadmap-view'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Info } from 'lucide-react'
 
-export default async function RoadmapPage() {
+interface RoadmapPageProps {
+  searchParams: {
+    team?: string
+  }
+}
+
+export default async function RoadmapPage({ searchParams }: RoadmapPageProps) {
+  const teamId = searchParams.team
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) return null
 
-  // Buscar tarefas e categorias
-  const { data: tasks } = await supabase
+  let tasksQuery = supabase
     .from('tasks')
-    .select(`*, category:categories(*)`)
-    .eq('user_id', user.id)
+    .select('*, category:categories(*)')
     .order('due_date', { ascending: true })
+
+  if (teamId) {
+    tasksQuery = tasksQuery.eq('team_id', teamId)
+  } else {
+    tasksQuery = tasksQuery.eq('user_id', user.id)
+  }
+
+  const { data: tasks } = await tasksQuery
 
   const { data: categories } = await supabase
     .from('categories')
@@ -39,9 +53,9 @@ export default async function RoadmapPage() {
           </AlertDescription>
         </Alert>
       ) : (
-        <RoadmapView 
-          tasks={tasks || []} 
-          categories={categories || []} 
+        <RoadmapView
+          tasks={tasks || []}
+          categories={categories || []}
         />
       )}
     </div>

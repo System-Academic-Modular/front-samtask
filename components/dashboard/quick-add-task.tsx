@@ -1,9 +1,7 @@
 'use client'
 
-import React from "react"
-
-import { useState, useTransition } from 'react'
-import type { Category, TaskPriority } from '@/lib/types'
+import React, { useState, useTransition } from 'react'
+import type { Category, TaskPriority, TeamMember } from '@/lib/types'
 import { createTask } from '@/lib/actions/tasks'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -21,7 +19,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
-import { Plus, CalendarIcon, Flag, Loader2 } from 'lucide-react'
+import { Plus, CalendarIcon, Flag, Loader2, UserRound } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -30,28 +28,33 @@ import { cn } from '@/lib/utils'
 interface QuickAddTaskProps {
   categories: Category[]
   parentId?: string
+  selectedTeamId?: string | null
+  teamMembers?: TeamMember[]
 }
 
-export function QuickAddTask({ categories, parentId }: QuickAddTaskProps) {
+export function QuickAddTask({ categories, parentId, selectedTeamId, teamMembers = [] }: QuickAddTaskProps) {
   const [title, setTitle] = useState('')
   const [priority, setPriority] = useState<TaskPriority>('medium')
-  const [categoryId, setCategoryId] = useState<string>('none') // Updated default value
+  const [categoryId, setCategoryId] = useState<string>('none')
+  const [assigneeId, setAssigneeId] = useState<string>('none')
   const [dueDate, setDueDate] = useState<Date | undefined>()
   const [showOptions, setShowOptions] = useState(false)
   const [isPending, startTransition] = useTransition()
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    
+
     if (!title.trim()) return
 
     startTransition(async () => {
       const result = await createTask({
         title: title.trim(),
         priority,
-        category_id: categoryId || undefined,
+        category_id: categoryId === 'none' ? undefined : categoryId,
         due_date: dueDate?.toISOString(),
         parent_id: parentId,
+        team_id: selectedTeamId || undefined,
+        assignee_id: assigneeId === 'none' ? undefined : assigneeId,
       })
 
       if (result.error) {
@@ -64,7 +67,8 @@ export function QuickAddTask({ categories, parentId }: QuickAddTaskProps) {
       toast.success('Tarefa criada!')
       setTitle('')
       setPriority('medium')
-      setCategoryId('none') // Updated default value
+      setCategoryId('none')
+      setAssigneeId('none')
       setDueDate(undefined)
       setShowOptions(false)
     })
@@ -86,18 +90,13 @@ export function QuickAddTask({ categories, parentId }: QuickAddTaskProps) {
               />
             </div>
             <Button type="submit" size="sm" disabled={!title.trim() || isPending}>
-              {isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Plus className="h-4 w-4" />
-              )}
+              {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               <span className="ml-1 hidden sm:inline">Adicionar</span>
             </Button>
           </div>
 
           {showOptions && (
             <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-border">
-              {/* Priority */}
               <Select value={priority} onValueChange={(v) => setPriority(v as TaskPriority)}>
                 <SelectTrigger className="w-[130px] h-8">
                   <Flag className="w-3 h-3 mr-1" />
@@ -111,7 +110,6 @@ export function QuickAddTask({ categories, parentId }: QuickAddTaskProps) {
                 </SelectContent>
               </Select>
 
-              {/* Category */}
               {categories.length > 0 && (
                 <Select value={categoryId} onValueChange={setCategoryId}>
                   <SelectTrigger className="w-[150px] h-8">
@@ -122,10 +120,7 @@ export function QuickAddTask({ categories, parentId }: QuickAddTaskProps) {
                     {categories.map((cat) => (
                       <SelectItem key={cat.id} value={cat.id}>
                         <div className="flex items-center gap-2">
-                          <div 
-                            className="w-2 h-2 rounded-full" 
-                            style={{ backgroundColor: cat.color }}
-                          />
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
                           {cat.name}
                         </div>
                       </SelectItem>
@@ -134,16 +129,29 @@ export function QuickAddTask({ categories, parentId }: QuickAddTaskProps) {
                 </Select>
               )}
 
-              {/* Due Date */}
+              {!!selectedTeamId && (
+                <Select value={assigneeId} onValueChange={setAssigneeId}>
+                  <SelectTrigger className="w-[190px] h-8">
+                    <UserRound className="w-3 h-3 mr-1" />
+                    <SelectValue placeholder="Responsável" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sem responsável</SelectItem>
+                    {teamMembers.map((member) => (
+                      <SelectItem key={member.user_id} value={member.user_id}>
+                        {member.profile?.full_name || 'Membro da equipe'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     size="sm"
-                    className={cn(
-                      'h-8 justify-start text-left font-normal',
-                      !dueDate && 'text-muted-foreground'
-                    )}
+                    className={cn('h-8 justify-start text-left font-normal', !dueDate && 'text-muted-foreground')}
                   >
                     <CalendarIcon className="mr-1 h-3 w-3" />
                     {dueDate ? format(dueDate, 'dd/MM/yyyy', { locale: ptBR }) : 'Data'}

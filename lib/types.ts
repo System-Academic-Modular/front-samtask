@@ -46,6 +46,8 @@ export interface Task {
   is_recurring: boolean
   recurrence_pattern: string | null
   position: number
+  team_id?: string | null
+  assignee_id?: string | null
   completed_at: string | null
   created_at: string
   updated_at: string
@@ -53,6 +55,18 @@ export interface Task {
   category?: Category | null
   tags?: Tag[]
   subtasks?: Task[]
+}
+
+export interface Team {
+  id: string
+  name: string
+}
+
+export interface TeamMember {
+  team_id: string
+  user_id: string
+  role: string
+  profile: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
 }
 
 export interface TaskTag {

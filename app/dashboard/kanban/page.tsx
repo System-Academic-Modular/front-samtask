@@ -1,22 +1,38 @@
 import { createClient } from '@/lib/supabase/server'
 import { KanbanView } from '@/components/dashboard/kanban-view'
+import type { TeamMember } from '@/lib/types'
 
-export default async function KanbanPage() {
+interface KanbanPageProps {
+  searchParams: {
+    team?: string
+  }
+}
+
+export default async function KanbanPage({ searchParams }: KanbanPageProps) {
+  const teamId = searchParams.team
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) return null
 
-  const { data: tasks } = await supabase
+  let taskQuery = supabase
     .from('tasks')
     .select(`
       *,
       category:categories(*)
     `)
-    .eq('user_id', user.id)
     .is('parent_id', null)
     .order('position', { ascending: true })
     .order('created_at', { ascending: false })
+
+  if (teamId) {
+    taskQuery = taskQuery.eq('team_id', teamId)
+  } else {
+    taskQuery = taskQuery.eq('user_id', user.id)
+  }
+
+  const { data: tasks } = await taskQuery
 
   const { data: categories } = await supabase
     .from('categories')
@@ -24,10 +40,40 @@ export default async function KanbanPage() {
     .eq('user_id', user.id)
     .order('name')
 
+  const teamMembers: TeamMember[] = []
+
+  if (teamId) {
+    const { data: members } = await supabase
+      .from('team_members')
+      .select('team_id,user_id,role')
+      .eq('team_id', teamId)
+
+    const memberIds = (members || []).map((member) => member.user_id)
+    const { data: profiles } = memberIds.length
+      ? await supabase
+          .from('profiles')
+          .select('id,full_name,avatar_url')
+          .in('id', memberIds)
+      : { data: [] }
+
+    const profileMap = Object.fromEntries((profiles || []).map((profile) => [profile.id, profile]))
+
+    for (const member of members || []) {
+      teamMembers.push({
+        team_id: member.team_id,
+        user_id: member.user_id,
+        role: member.role,
+        profile: profileMap[member.user_id] || null,
+      })
+    }
+  }
+
   return (
-    <KanbanView 
-      tasks={tasks || []} 
+    <KanbanView
+      tasks={tasks || []}
       categories={categories || []}
+      selectedTeamId={teamId || null}
+      teamMembers={teamMembers}
     />
   )
 }
