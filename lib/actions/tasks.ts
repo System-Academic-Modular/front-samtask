@@ -13,6 +13,8 @@ export async function createTask(data: {
   estimated_minutes?: number
   category_id?: string
   parent_id?: string
+  team_id?: string
+  assignee_id?: string
 }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -33,6 +35,8 @@ export async function createTask(data: {
       estimated_minutes: data.estimated_minutes || null,
       category_id: data.category_id || null,
       parent_id: data.parent_id || null,
+      team_id: data.team_id || null,
+      assignee_id: data.assignee_id || null,
     })
     .select()
     .single()
@@ -54,6 +58,7 @@ export async function updateTask(id: string, data: Partial<{
   estimated_minutes: number | null
   actual_minutes: number
   category_id: string | null
+  assignee_id: string | null
   position: number
   completed_at: string | null
 }>) {
@@ -64,7 +69,6 @@ export async function updateTask(id: string, data: Partial<{
     return { error: 'Unauthorized' }
   }
 
-  // If status is being changed to done, set completed_at
   if (data.status === 'done' && !data.completed_at) {
     data.completed_at = new Date().toISOString()
   } else if (data.status && data.status !== 'done') {
@@ -78,7 +82,6 @@ export async function updateTask(id: string, data: Partial<{
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
-    .eq('user_id', user.id)
     .select()
     .single()
 
@@ -102,7 +105,6 @@ export async function deleteTask(id: string) {
     .from('tasks')
     .delete()
     .eq('id', id)
-    .eq('user_id', user.id)
 
   if (error) {
     return { error: error.message }
@@ -118,6 +120,7 @@ export async function getTasks(filters?: {
   category_id?: string
   is_today?: boolean
   search?: string
+  team_id?: string
 }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -133,10 +136,15 @@ export async function getTasks(filters?: {
       category:categories(*),
       subtasks:tasks!parent_id(*)
     `)
-    .eq('user_id', user.id)
     .is('parent_id', null)
     .order('position', { ascending: true })
     .order('created_at', { ascending: false })
+
+  if (filters?.team_id) {
+    query = query.eq('team_id', filters.team_id)
+  } else {
+    query = query.eq('user_id', user.id)
+  }
 
   if (filters?.status && filters.status.length > 0) {
     query = query.in('status', filters.status)
@@ -155,7 +163,7 @@ export async function getTasks(filters?: {
     today.setHours(0, 0, 0, 0)
     const tomorrow = new Date(today)
     tomorrow.setDate(tomorrow.getDate() + 1)
-    
+
     query = query
       .gte('due_date', today.toISOString())
       .lt('due_date', tomorrow.toISOString())

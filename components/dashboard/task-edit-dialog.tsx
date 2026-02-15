@@ -1,9 +1,7 @@
 'use client'
 
-import React from "react"
-
-import { useState, useEffect, useTransition } from 'react'
-import type { Task, Category, TaskPriority, TaskStatus } from '@/lib/types'
+import React, { useState, useEffect, useTransition } from 'react'
+import type { Task, Category, TaskPriority, TaskStatus, TeamMember } from '@/lib/types'
 import { updateTask } from '@/lib/actions/tasks'
 import {
   Dialog,
@@ -37,16 +35,18 @@ import { cn } from '@/lib/utils'
 interface TaskEditDialogProps {
   task: Task | null
   categories: Category[]
+  teamMembers?: TeamMember[]
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-export function TaskEditDialog({ task, categories, open, onOpenChange }: TaskEditDialogProps) {
+export function TaskEditDialog({ task, categories, teamMembers = [], open, onOpenChange }: TaskEditDialogProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [status, setStatus] = useState<TaskStatus>('todo')
   const [priority, setPriority] = useState<TaskPriority>('medium')
   const [categoryId, setCategoryId] = useState<string>('none')
+  const [assigneeId, setAssigneeId] = useState<string>('none')
   const [dueDate, setDueDate] = useState<Date | undefined>()
   const [estimatedMinutes, setEstimatedMinutes] = useState<string>('')
   const [isPending, startTransition] = useTransition()
@@ -58,6 +58,7 @@ export function TaskEditDialog({ task, categories, open, onOpenChange }: TaskEdi
       setStatus(task.status)
       setPriority(task.priority)
       setCategoryId(task.category_id || 'none')
+      setAssigneeId(task.assignee_id || 'none')
       setDueDate(task.due_date ? new Date(task.due_date) : undefined)
       setEstimatedMinutes(task.estimated_minutes?.toString() || '')
     }
@@ -65,7 +66,7 @@ export function TaskEditDialog({ task, categories, open, onOpenChange }: TaskEdi
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    
+
     if (!task || !title.trim()) return
 
     startTransition(async () => {
@@ -74,7 +75,8 @@ export function TaskEditDialog({ task, categories, open, onOpenChange }: TaskEdi
         description: description.trim() || null,
         status,
         priority,
-        category_id: categoryId || null,
+        category_id: categoryId === 'none' ? null : categoryId,
+        assignee_id: assigneeId === 'none' ? null : assigneeId,
         due_date: dueDate?.toISOString() || null,
         estimated_minutes: estimatedMinutes ? parseInt(estimatedMinutes) : null,
       })
@@ -101,24 +103,12 @@ export function TaskEditDialog({ task, categories, open, onOpenChange }: TaskEdi
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="title">Titulo</Label>
-            <Input
-              id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Nome da tarefa"
-              required
-            />
+            <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nome da tarefa" required />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="description">Descricao</Label>
-            <Textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Descricao opcional"
-              rows={3}
-            />
+            <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descricao opcional" rows={3} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -164,10 +154,7 @@ export function TaskEditDialog({ task, categories, open, onOpenChange }: TaskEdi
                   {categories.map((cat) => (
                     <SelectItem key={cat.id} value={cat.id}>
                       <div className="flex items-center gap-2">
-                        <div 
-                          className="w-2 h-2 rounded-full" 
-                          style={{ backgroundColor: cat.color }}
-                        />
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
                         {cat.name}
                       </div>
                     </SelectItem>
@@ -188,29 +175,39 @@ export function TaskEditDialog({ task, categories, open, onOpenChange }: TaskEdi
             </div>
           </div>
 
+          {teamMembers.length > 0 && (
+            <div className="space-y-2">
+              <Label>Responsável</Label>
+              <Select value={assigneeId} onValueChange={setAssigneeId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sem responsável" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sem responsável</SelectItem>
+                  {teamMembers.map((member) => (
+                    <SelectItem key={member.user_id} value={member.user_id}>
+                      {member.profile?.full_name || 'Membro da equipe'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label>Data de Entrega</Label>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
-                  className={cn(
-                    'w-full justify-start text-left font-normal',
-                    !dueDate && 'text-muted-foreground'
-                  )}
+                  className={cn('w-full justify-start text-left font-normal', !dueDate && 'text-muted-foreground')}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {dueDate ? format(dueDate, 'PPP', { locale: ptBR }) : 'Selecionar data'}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={dueDate}
-                  onSelect={setDueDate}
-                  initialFocus
-                  locale={ptBR}
-                />
+                <Calendar mode="single" selected={dueDate} onSelect={setDueDate} initialFocus locale={ptBR} />
               </PopoverContent>
             </Popover>
           </div>

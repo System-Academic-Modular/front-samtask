@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
-import type { Profile } from '@/lib/types'
+import type { Profile, Team } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,20 +15,39 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Menu, Settings, LogOut } from 'lucide-react'
 import { toast } from 'sonner'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { useSidebar } from '@/components/dashboard/sidebar-context' // Importe o contexto
+import { useSidebar } from '@/components/dashboard/sidebar-context'
 
 interface DashboardHeaderProps {
   user: User
   profile: Profile | null
+  teams: Team[]
 }
 
-export function DashboardHeader({ user, profile }: DashboardHeaderProps) {
+export function DashboardHeader({ user, profile, teams }: DashboardHeaderProps) {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const supabase = createClient()
-  const { toggle } = useSidebar() // Usa a função toggle do nosso contexto
+  const { toggle } = useSidebar()
+
+  const selectedContext = useMemo(() => {
+    const teamId = searchParams.get('team')
+    if (teamId && teams.some((team) => team.id === teamId)) {
+      return `team:${teamId}`
+    }
+
+    return 'personal'
+  }, [searchParams, teams])
 
   async function handleSignOut() {
     const { error } = await supabase.auth.signOut()
@@ -40,15 +59,26 @@ export function DashboardHeader({ user, profile }: DashboardHeaderProps) {
     router.refresh()
   }
 
+  function handleContextChange(value: string) {
+    const params = new URLSearchParams(searchParams.toString())
+
+    if (value === 'personal') {
+      params.delete('team')
+    } else {
+      params.set('team', value.replace('team:', ''))
+    }
+
+    const queryString = params.toString()
+    router.push(queryString ? `${pathname}?${queryString}` : pathname)
+  }
+
   const userInitials = (profile?.full_name || user.email || 'U').substring(0, 2).toUpperCase()
 
   return (
     <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-white/5 bg-background/60 px-4 shadow-sm backdrop-blur-xl sm:gap-x-6 sm:px-6 lg:px-8">
-      
-      {/* Botão Menu Burguer (Agora visível SEMPRE e controla a Sidebar) */}
-      <Button 
-        variant="ghost" 
-        size="icon" 
+      <Button
+        variant="ghost"
+        size="icon"
         className="text-muted-foreground hover:text-white"
         onClick={toggle}
       >
@@ -56,10 +86,24 @@ export function DashboardHeader({ user, profile }: DashboardHeaderProps) {
         <span className="sr-only">Alternar Menu</span>
       </Button>
 
-      {/* Spacer */}
+      <div className="hidden sm:block min-w-[220px]">
+        <Select value={selectedContext} onValueChange={handleContextChange}>
+          <SelectTrigger className="h-9 border-white/10 bg-card/40 text-xs md:text-sm">
+            <SelectValue placeholder="Contexto" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="personal">Ver Minhas Tarefas</SelectItem>
+            {teams.map((team) => (
+              <SelectItem key={team.id} value={`team:${team.id}`}>
+                Ver Tarefas da Equipe {team.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="flex-1" />
 
-      {/* User menu */}
       <div className="flex items-center gap-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -67,7 +111,7 @@ export function DashboardHeader({ user, profile }: DashboardHeaderProps) {
               <Avatar className="h-9 w-9 border border-white/10 transition-transform hover:scale-105">
                 <AvatarImage src={profile?.avatar_url || ''} alt={profile?.full_name || ''} />
                 <AvatarFallback className="bg-brand-violet/20 text-brand-violet font-bold">
-                    {userInitials}
+                  {userInitials}
                 </AvatarFallback>
               </Avatar>
             </Button>

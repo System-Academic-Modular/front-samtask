@@ -1,10 +1,10 @@
-import React from "react"
+import React from 'react'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { DashboardSidebar } from '@/components/dashboard/sidebar'
 import { DashboardHeader } from '@/components/dashboard/header'
-import { Toaster } from '@/components/ui/sonner'
 import { SidebarProvider } from '@/components/dashboard/sidebar-context'
+import type { Team } from '@/lib/types'
 
 export default async function DashboardLayout({
   children,
@@ -24,15 +24,25 @@ export default async function DashboardLayout({
     .eq('id', user.id)
     .single()
 
+  const { data: teamRows } = await supabase
+    .from('team_members')
+    .select('team_id')
+    .eq('user_id', user.id)
+
+  const teamIds = (teamRows || []).map((row) => row.team_id)
+  const { data: teamsData } = teamIds.length
+    ? await supabase.from('teams').select('id,name').in('id', teamIds)
+    : { data: [] }
+
+  const teams = (teamsData || []) as Team[]
+
   return (
     <SidebarProvider>
       <div className="min-h-screen bg-background relative">
-        {/* A Sidebar agora é "flutuante", não ocupa espaço no fluxo */}
         <DashboardSidebar user={user} profile={profile} />
-        
-        {/* Conteúdo principal ocupa 100% da tela sempre */}
+
         <div className="w-full transition-all duration-300">
-          <DashboardHeader user={user} profile={profile} />
+          <DashboardHeader user={user} profile={profile} teams={teams} />
           <main className="p-4 md:p-6 lg:p-8">
             {children}
           </main>
