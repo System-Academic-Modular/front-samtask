@@ -1,5 +1,6 @@
 import React from 'react'
 import { redirect } from 'next/navigation'
+import { Analytics } from "@vercel/analytics/next"
 import { createClient } from '@/lib/supabase/server'
 import { DashboardSidebar } from '@/components/dashboard/sidebar'
 import { DashboardHeader } from '@/components/dashboard/header'
@@ -67,3 +68,4 @@ export default async function DashboardLayout({
     </TaskContextProvider>
   )
 }
+<Analytics/>
