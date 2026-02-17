@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useTransition } from 'react'
 import type { Task } from '@/lib/types'
 import { updateTask, deleteTask } from '@/lib/actions/tasks'
 import { Card, CardContent } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { MoreHorizontal, Pencil, Trash2, Clock, Calendar } from 'lucide-react'
+import { MoreHorizontal, Pencil, Trash2, Clock, Calendar, User } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import confetti from 'canvas-confetti'
@@ -26,15 +27,15 @@ interface TaskItemProps {
 }
 
 const priorityColors = {
-  low: 'bg-muted text-muted-foreground',
-  medium: 'bg-primary/10 text-primary',
-  high: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-  urgent: 'bg-destructive/10 text-destructive',
+  low: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+  medium: 'bg-brand-cyan/10 text-brand-cyan border-brand-cyan/20',
+  high: 'bg-brand-amber/10 text-brand-amber border-brand-amber/20',
+  urgent: 'bg-red-500/10 text-red-500 border-red-500/20',
 }
 
 const priorityLabels = {
   low: 'Baixa',
-  medium: 'Media',
+  medium: 'Média',
   high: 'Alta',
   urgent: 'Urgente',
 }
@@ -54,15 +55,14 @@ export function TaskItem({ task, onEdit, showCompleted }: TaskItemProps) {
       }
 
       if (newStatus === 'done') {
-        // Celebrate!
         confetti({
-          particleCount: 50,
-          spread: 60,
+          particleCount: 40,
+          spread: 70,
           origin: { y: 0.8 },
-          colors: ['#0ea5e9', '#10b981', '#f59e0b'],
+          colors: ['#8b5cf6', '#06b6d4', '#10b981'],
         })
-        toast.success('Tarefa concluida!', {
-          description: 'Parabens! Continue assim!',
+        toast.success('Tarefa concluída!', {
+          description: 'Ótimo trabalho! Foco no próximo objetivo.',
         })
       }
     })
@@ -75,102 +75,137 @@ export function TaskItem({ task, onEdit, showCompleted }: TaskItemProps) {
         toast.error('Erro ao excluir tarefa')
         return
       }
-      toast.success('Tarefa excluida')
+      toast.success('Tarefa excluída')
     })
   }
 
   const dueDate = task.due_date ? new Date(task.due_date) : null
   const isOverdue = dueDate && dueDate < new Date() && !isCompleted
 
+  // Helper para pegar as iniciais do nome
+  const getInitials = (name: string | null) => {
+    if (!name) return '?'
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2)
+  }
+
   return (
     <Card className={cn(
-      'transition-all duration-200',
-      isPending && 'opacity-50',
-      showCompleted && 'opacity-60'
+      'transition-all duration-300 group relative overflow-hidden bg-card/40 border-white/5 hover:border-brand-violet/40 hover:shadow-lg hover:shadow-brand-violet/5',
+      isPending && 'opacity-50 pointer-events-none',
+      isCompleted && 'bg-white/[0.02]'
     )}>
+      {/* Indicador lateral de status */}
+      <div className={cn(
+        "absolute left-0 top-0 bottom-0 w-1 transition-all",
+        isCompleted ? "bg-brand-emerald" : "bg-transparent group-hover:bg-brand-violet/40"
+      )} />
+
       <CardContent className="p-4">
-        <div className="flex items-start gap-3">
-          <Checkbox
-            checked={isCompleted}
-            onCheckedChange={handleToggleComplete}
-            disabled={isPending}
-            className="mt-1"
-          />
+        <div className="flex items-start gap-4">
+          <div className="flex flex-col items-center gap-2 mt-1">
+            <Checkbox
+              checked={isCompleted}
+              onCheckedChange={handleToggleComplete}
+              className="h-5 w-5 border-white/20 data-[state=checked]:bg-brand-emerald data-[state=checked]:border-brand-emerald"
+            />
+          </div>
           
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
-              <div className="flex-1">
+              <div className="flex-1 space-y-1">
                 <h3 className={cn(
-                  'font-medium text-foreground',
-                  isCompleted && 'line-through text-muted-foreground'
+                  'font-semibold text-base transition-all',
+                  isCompleted ? 'text-muted-foreground line-through' : 'text-white'
                 )}>
                   {task.title}
                 </h3>
                 
                 {task.description && (
                   <p className={cn(
-                    'text-sm text-muted-foreground mt-1 line-clamp-2',
-                    isCompleted && 'line-through'
+                    'text-sm text-muted-foreground line-clamp-2 leading-relaxed',
+                    isCompleted && 'opacity-50'
                   )}>
                     {task.description}
                   </p>
                 )}
 
-                <div className="flex flex-wrap items-center gap-2 mt-2">
-                  <Badge variant="secondary" className={priorityColors[task.priority]}>
+                <div className="flex flex-wrap items-center gap-3 mt-4">
+                  {/* Badge de Prioridade Melhorado */}
+                  <Badge variant="outline" className={cn("text-[10px] font-bold uppercase tracking-wider h-5", priorityColors[task.priority])}>
                     {priorityLabels[task.priority]}
                   </Badge>
 
+                  {/* Badge de Categoria */}
                   {task.category && (
                     <Badge 
                       variant="outline"
-                      style={{ borderColor: task.category.color, color: task.category.color }}
+                      className="text-[10px] h-5 bg-black/20"
+                      style={{ borderColor: `${task.category.color}40`, color: task.category.color }}
                     >
+                      <div className="w-1.5 h-1.5 rounded-full mr-1.5" style={{ backgroundColor: task.category.color }} />
                       {task.category.name}
                     </Badge>
                   )}
 
+                  {/* Estimativa de Tempo */}
                   {task.estimated_minutes && (
-                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {task.estimated_minutes}min
+                    <span className="text-[11px] text-muted-foreground flex items-center gap-1.5 bg-white/5 px-2 py-0.5 rounded-full">
+                      <Clock className="w-3 h-3 text-brand-cyan" />
+                      {task.estimated_minutes}m
                     </span>
                   )}
 
+                  {/* Data de Entrega */}
                   {dueDate && (
                     <span className={cn(
-                      'text-xs flex items-center gap-1',
-                      isOverdue ? 'text-destructive' : 'text-muted-foreground'
+                      'text-[11px] flex items-center gap-1.5 px-2 py-0.5 rounded-full',
+                      isOverdue ? 'bg-red-500/10 text-red-500' : 'bg-white/5 text-muted-foreground'
                     )}>
                       <Calendar className="w-3 h-3" />
-                      {dueDate.toLocaleDateString('pt-BR')}
+                      {dueDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
                     </span>
+                  )}
+
+                  {/* AVATAR DO RESPONSÁVEL (Assignee) */}
+                  {task.assignee && (
+                    <div className="flex items-center gap-2 ml-auto group/assignee">
+                      <span className="text-[10px] text-muted-foreground font-medium hidden sm:inline-block opacity-0 group-hover:opacity-100 transition-opacity">
+                        {task.assignee.full_name?.split(' ')[0]}
+                      </span>
+                      <Avatar className="h-6 w-6 border border-white/10 ring-2 ring-transparent group-hover/assignee:ring-brand-violet/30 transition-all">
+                        <AvatarImage src={task.assignee.avatar_url || ''} />
+                        <AvatarFallback className="text-[9px] bg-brand-violet/20 text-brand-violet font-bold">
+                          {getInitials(task.assignee.full_name)}
+                        </AvatarFallback>
+                      </Avatar>
+                    </div>
                   )}
                 </div>
               </div>
 
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <MoreHorizontal className="h-4 w-4" />
-                    <span className="sr-only">Acoes</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={onEdit}>
-                    <Pencil className="mr-2 h-4 w-4" />
-                    Editar
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    onClick={handleDelete}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Excluir
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <div className="flex flex-col items-end gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-white hover:bg-white/10 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-40 bg-[#18181b] border-white/10">
+                    <DropdownMenuItem onClick={onEdit} className="cursor-pointer">
+                      <Pencil className="mr-2 h-4 w-4 text-brand-cyan" />
+                      Editar
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator className="bg-white/5" />
+                    <DropdownMenuItem 
+                      onClick={handleDelete}
+                      className="text-red-400 focus:text-red-400 focus:bg-red-400/10 cursor-pointer"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Excluir
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
           </div>
         </div>

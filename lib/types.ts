@@ -1,6 +1,14 @@
+// ==========================================
+// ENUMS & TYPES BÁSICOS
+// ==========================================
 export type TaskStatus = 'todo' | 'in_progress' | 'done'
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent'
 export type PomodoroType = 'work' | 'short_break' | 'long_break'
+export type TeamRole = 'owner' | 'admin' | 'member' // Necessário para o módulo de equipes
+
+// ==========================================
+// ENTIDADES PRINCIPAIS
+// ==========================================
 
 export interface Profile {
   id: string
@@ -31,6 +39,28 @@ export interface Tag {
   created_at: string
 }
 
+// Interface Team expandida para suportar a página de equipes
+export interface Team {
+  id: string
+  name: string
+  description: string | null
+  owner_id: string
+  invite_code: string // Fundamental para o sistema de convite
+  created_at: string
+  updated_at: string
+}
+
+export interface TeamMember {
+  id: string
+  team_id: string
+  user_id: string
+  role: TeamRole
+  joined_at: string
+  // Opcionais para joins
+  team?: Team 
+  profile?: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
+}
+
 export interface Task {
   id: string
   user_id: string
@@ -51,22 +81,17 @@ export interface Task {
   completed_at: string | null
   created_at: string
   updated_at: string
-  // Joined data
+  
+  // Joined data (Opcionais)
   category?: Category | null
   tags?: Tag[]
   subtasks?: Task[]
-}
-
-export interface Team {
-  id: string
-  name: string
-}
-
-export interface TeamMember {
-  team_id: string
-  user_id: string
-  role: string
-  profile: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
+  team?: Team | null
+  // ADICIONADO: Tipagem para o join do responsável
+  assignee?: {
+    full_name: string | null
+    avatar_url: string | null
+  } | null
 }
 
 export interface TaskTag {
@@ -80,7 +105,7 @@ export interface PomodoroSession {
   task_id: string | null
   duration_minutes: number
   type: PomodoroType
-  created_at: string   // <--- ADICIONADO AQUI PARA CORRIGIR O ERRO
+  created_at: string
   completed_at?: string
 }
 
@@ -93,10 +118,11 @@ export interface EmotionalCheckin {
   created_at: string
 }
 
-// View types
+// ==========================================
+// VIEW & FILTER TYPES
+// ==========================================
 export type ViewType = 'list' | 'kanban' | 'calendar'
 
-// Filter types
 export interface TaskFilters {
   status?: TaskStatus[]
   priority?: TaskPriority[]

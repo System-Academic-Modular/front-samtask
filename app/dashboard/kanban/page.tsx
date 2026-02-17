@@ -45,7 +45,7 @@ export default async function KanbanPage({ searchParams }: KanbanPageProps) {
   if (teamId) {
     const { data: members } = await supabase
       .from('team_members')
-      .select('team_id,user_id,role')
+      .select('id,team_id,user_id,role,joined_at')
       .eq('team_id', teamId)
 
     const memberIds = (members || []).map((member) => member.user_id)
@@ -60,9 +60,11 @@ export default async function KanbanPage({ searchParams }: KanbanPageProps) {
 
     for (const member of members || []) {
       teamMembers.push({
+        id: member.id,
         team_id: member.team_id,
         user_id: member.user_id,
         role: member.role,
+        joined_at: member.joined_at,
         profile: profileMap[member.user_id] || null,
       })
     }

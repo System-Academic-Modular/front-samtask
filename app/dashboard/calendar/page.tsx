@@ -18,16 +18,12 @@ export default async function CalendarPage() {
     .not('due_date', 'is', null)
     .order('due_date', { ascending: true })
 
-  const { data: categories } = await supabase
-    .from('categories')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('name')
-
+  // NOTA: Removemos a busca de categorias e a prop 'categories'
+  // porque o componente CalendarView ainda não implementou filtros laterais.
+  
   return (
     <CalendarView 
       tasks={tasks || []} 
-      categories={categories || []}
     />
   )
 }
