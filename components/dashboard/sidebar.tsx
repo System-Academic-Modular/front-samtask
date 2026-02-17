@@ -49,11 +49,12 @@ export function DashboardSidebar({ user, profile }: DashboardSidebarProps) {
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
-  useEffect(() => {
-    if (isMobile && isOpen) {
-      close()
-    }
-  }, [pathname, isMobile, isOpen, close])
+ // Fecha a sidebar apenas quando o usuário navegar para outra página (no mobile)
+useEffect(() => {
+  if (isMobile) {
+    close()
+  }
+}, [pathname]) // Remova isOpen e isMobile das dependências
 
   // Lógica de Visibilidade:
   // Mobile: Só mostra se isOpen for true
