@@ -303,6 +303,9 @@ export function SettingsView({ user, profile, categories }: SettingsViewProps) {
                   {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {editingCategory ? 'Atualizar' : 'Criar'}
                 </Button>
+                                      <Button onClick={() => window.location.href = '/api/integrations/google/connect'}>
+  Conectar Google Calendar 📅
+</Button>
               </DialogContent>
             </Dialog>
           </div>

@@ -13,14 +13,16 @@ import {
   Target, Settings, Zap, Columns, Timer, X, Users
 } from 'lucide-react'
 
+// ATUALIZAÇÃO AQUI: Adicionando 'streak' na interface
 interface DashboardSidebarProps {
   user: User
   profile: Profile | null
+  streak?: number 
 }
 
 const navigation = [
   { name: 'Timeline', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Equipes', href: '/dashboard/teams', icon: Users }, // <--- Adicionado
+  { name: 'Equipes', href: '/dashboard/teams', icon: Users },
   { name: 'Calendário Master', href: '/dashboard/calendar', icon: CalendarRange },
   { name: 'Roadmap', href: '/dashboard/roadmap', icon: Map },
   { name: 'Árvore de Projetos', href: '/dashboard/projects', icon: Network },
@@ -30,40 +32,30 @@ const navigation = [
   { name: 'Performance', href: '/dashboard/reports', icon: Target },
 ]
 
-export function DashboardSidebar({ user, profile }: DashboardSidebarProps) {
+// ATUALIZAÇÃO AQUI: Recebendo a prop 'streak'
+export function DashboardSidebar({ user, profile, streak = 0 }: DashboardSidebarProps) {
   const pathname = usePathname()
   const { isOpen, close, toggle } = useSidebar()
   const [isHovered, setIsHovered] = useState(false)
-  
-  // CORREÇÃO DE HIDRATAÇÃO: Estado para controlar Mobile
   const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 1024)
-    
-    // Checa inicial
     checkMobile()
-    
-    // Adiciona listener para resize
     window.addEventListener('resize', checkMobile)
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
- // Fecha a sidebar apenas quando o usuário navegar para outra página (no mobile)
-useEffect(() => {
-  if (isMobile) {
-    close()
-  }
-}, [pathname]) // Remova isOpen e isMobile das dependências
+  useEffect(() => {
+    if (isMobile) {
+      close()
+    }
+  }, [pathname]) 
 
-  // Lógica de Visibilidade:
-  // Mobile: Só mostra se isOpen for true
-  // Desktop: Mostra se isOpen for true OU se o mouse estiver em cima (hover)
   const isVisible = isMobile ? isOpen : (isOpen || isHovered)
 
   return (
     <>
-      {/* 1. ZONA DE GATILHO (HOVER) - Apenas Desktop e quando fechado */}
       {!isMobile && !isOpen && (
         <div 
           className="fixed inset-y-0 left-0 w-6 z-40 bg-transparent hover:bg-white/5 transition-colors"
@@ -71,24 +63,21 @@ useEffect(() => {
         />
       )}
 
-      {/* 2. OVERLAY ESCURO (Apenas Mobile quando aberto) */}
       {(isOpen && isMobile) && (
         <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 animate-in fade-in duration-200 motion-reduce:animate-none"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 animate-in fade-in duration-200"
           onClick={close}
         />
       )}
 
-      {/* 3. A SIDEBAR */}
       <aside 
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-72 bg-[#09090b]/95 backdrop-blur-xl border-r border-white/10 shadow-2xl transition-[transform,box-shadow] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none will-change-transform flex flex-col h-[100dvh]",
+          "fixed inset-y-0 left-0 z-50 w-72 bg-[#09090b]/95 backdrop-blur-xl border-r border-white/10 shadow-2xl transition-[transform,box-shadow] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] flex flex-col h-[100dvh]",
           isVisible ? "translate-x-0" : "-translate-x-full"
         )}
         onMouseEnter={() => !isMobile && setIsHovered(true)}
         onMouseLeave={() => !isMobile && setIsHovered(false)}
       >
-        {/* Header da Sidebar */}
         <div className="flex h-16 shrink-0 items-center justify-between px-6 border-b border-white/5 bg-black/20">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-gradient-to-br from-brand-violet to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-brand-violet/20">
@@ -99,7 +88,6 @@ useEffect(() => {
             </span>
           </div>
           
-          {/* Botão fechar (Mobile) ou Fixar (Desktop) */}
           <Button 
             variant="ghost" 
             size="icon" 
@@ -112,15 +100,16 @@ useEffect(() => {
           </Button>
         </div>
 
-        {/* Scroll Area Principal */}
         <div className="flex-1 overflow-y-auto py-6 px-3 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
           
-          {/* Widget Streak */}
+          {/* WIDGET STREAK DINÂMICO AQUI */}
           <div className="mb-6 mx-2 bg-gradient-to-r from-orange-500/10 to-amber-500/5 rounded-xl p-3 border border-orange-500/20 flex items-center justify-between group cursor-pointer hover:border-orange-500/40 transition-colors">
               <div className="flex items-center gap-3">
                   <span className="text-xl animate-pulse drop-shadow-lg">🔥</span>
                   <div>
-                    <div className="text-sm font-bold text-white group-hover:text-orange-200 transition-colors">12 Dias</div>
+                    <div className="text-sm font-bold text-white group-hover:text-orange-200 transition-colors">
+                        {streak} {streak === 1 ? 'Dia' : 'Dias'}
+                    </div>
                     <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">Sequência</div>
                   </div>
               </div>
@@ -155,7 +144,6 @@ useEffect(() => {
           </nav>
         </div>
 
-        {/* Footer Fixo */}
         <div className="p-4 border-t border-white/5 bg-black/20 backdrop-blur-md">
             <Link href="/dashboard/settings" onClick={() => { if(isMobile) close() }}>
                 <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-white hover:bg-white/5 h-11">

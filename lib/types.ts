@@ -81,7 +81,8 @@ export interface Task {
   completed_at: string | null
   created_at: string
   updated_at: string
-  
+  children?: Task[]
+
   // Joined data (Opcionais)
   category?: Category | null
   tags?: Tag[]

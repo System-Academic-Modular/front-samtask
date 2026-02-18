@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Timer, ExternalLink, Play, Pause, RotateCcw, Coffee, Zap, Globe, BookOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { savePomodoroSession } from '@/lib/actions/pomodoro'
@@ -13,7 +14,6 @@ const QUICK_LINKS = [
   { name: 'GitHub', url: 'https://github.com', icon: Globe },
   { name: 'ChatGPT', url: 'https://chat.openai.com', icon: Zap },
   { name: 'Portal Anhanguera', url: 'https://www.anhanguera.com', icon: BookOpen },
-  { name: 'Notion', url: 'https://notion.so', icon: ExternalLink },
 ]
 
 export function FloatingTimer() {
@@ -21,54 +21,86 @@ export function FloatingTimer() {
   const [timeLeft, setTimeLeft] = useState(25 * 60)
   const [isActive, setIsActive] = useState(false)
   const [mode, setMode] = useState<'work' | 'break'>('work')
+  const [customMinutes, setCustomMinutes] = useState(25) // Permite editar o tempo
 
-  // 1. CORREÇÃO DE HIDRATAÇÃO
+  // 1. Hidratação e Recuperação do Estado
   useEffect(() => {
     setMounted(true)
+    const savedTarget = localStorage.getItem('pomodoro_target')
+    const savedMode = localStorage.getItem('pomodoro_mode') as 'work' | 'break' | null
+    
+    if (savedTarget && savedMode) {
+      const targetTime = parseInt(savedTarget, 10)
+      const now = Date.now()
+      const diff = Math.ceil((targetTime - now) / 1000)
+
+      if (diff > 0) {
+        setTimeLeft(diff)
+        setMode(savedMode)
+        setIsActive(true)
+      } else {
+        // Se o tempo acabou enquanto estava fora
+        localStorage.removeItem('pomodoro_target')
+        localStorage.removeItem('pomodoro_mode')
+        setTimeLeft(savedMode === 'work' ? 25 * 60 : 5 * 60)
+      }
+    }
   }, [])
+
+  // 2. Salvar target no localStorage
+  useEffect(() => {
+    if (!isActive) {
+      localStorage.removeItem('pomodoro_target')
+      return
+    }
+
+    if (!localStorage.getItem('pomodoro_target')) {
+        const targetTime = Date.now() + timeLeft * 1000
+        localStorage.setItem('pomodoro_target', targetTime.toString())
+        localStorage.setItem('pomodoro_mode', mode)
+    }
+  }, [isActive, mode, timeLeft])
 
   const handleFinished = useCallback(async () => {
     setIsActive(false)
-    const duration = mode === 'work' ? 25 : 5
+    localStorage.removeItem('pomodoro_target')
     
     if (mode === 'work') {
+      // Salva no banco com o tempo configurado (não fixo em 25)
       await savePomodoroSession({
-        duration_minutes: duration,
+        duration_minutes: customMinutes, 
         type: 'work'
       })
-      toast.success('Missão Cumprida!', {
-        description: 'Sessão de foco salva. Seu XP foi creditado!',
-        icon: <Zap className="w-4 h-4 text-brand-violet" />
+      toast.success('Foco concluído! +XP', { 
+        description: `${customMinutes} minutos registrados.` 
       })
+      
+      // Auto-switch para pausa
+      setMode('break')
+      setTimeLeft(5 * 60)
+    } else {
+      toast.info('Pausa finalizada! Bora voltar?')
+      setMode('work')
+      setTimeLeft(customMinutes * 60)
     }
-    
-    const nextMode = mode === 'work' ? 'break' : 'work'
-    setMode(nextMode)
-    setTimeLeft(nextMode === 'work' ? 25 * 60 : 5 * 60)
-  }, [mode])
+  }, [mode, customMinutes])
 
-  // 2. LÓGICA DO TIMER
+  // 3. O Loop do Timer
   useEffect(() => {
     let interval: NodeJS.Timeout
     if (isActive && timeLeft > 0) {
-      interval = setInterval(() => setTimeLeft(prev => prev - 1), 1000)
-    } else if (timeLeft === 0) {
-      handleFinished()
+      interval = setInterval(() => {
+        setTimeLeft((prev) => {
+           if (prev <= 1) {
+             handleFinished()
+             return 0
+           }
+           return prev - 1
+        })
+      }, 1000)
     }
     return () => clearInterval(interval)
   }, [isActive, timeLeft, handleFinished])
-
-  // 3. ATALHOS DE TECLADO (Alt + P para Play/Pause)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.altKey && e.key.toLowerCase() === 'p') {
-        setIsActive(prev => !prev)
-        toast(isActive ? "Timer Pausado" : "Timer Iniciado", { duration: 1000 })
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isActive])
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60)
@@ -76,40 +108,39 @@ export function FloatingTimer() {
     return `${m}:${s < 10 ? '0' : ''}${s}`
   }
 
-  // Previne erro de hidratação (não renderiza no servidor)
+  const handleCustomTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseInt(e.target.value)
+    if (val > 0 && val <= 180) {
+        setCustomMinutes(val)
+        if (!isActive && mode === 'work') {
+            setTimeLeft(val * 60)
+        }
+    }
+  }
+
   if (!mounted) return null
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 items-end">
+    // pointer-events-auto restaura o clique para o timer
+    <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 items-end pointer-events-auto">
       
       {/* Launcher de Links */}
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button 
-            size="icon" 
-            className="rounded-full h-10 w-10 bg-black/40 border border-white/10 backdrop-blur-md hover:border-brand-cyan/50 hover:bg-brand-cyan/10 transition-all group"
-          >
-            <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-brand-cyan transition-colors" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent side="left" className="w-52 bg-[#09090b]/95 border-white/10 backdrop-blur-xl shadow-2xl p-2">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-bold px-3 py-2">Quick Access</p>
-          <div className="grid grid-cols-1 gap-1">
-            {QUICK_LINKS.map(link => (
-              <a 
-                key={link.name} 
-                href={link.url} 
-                target="_blank" 
-                rel="noreferrer"
-                className="flex items-center gap-3 px-3 py-2 text-xs text-white hover:bg-white/5 rounded-lg transition-all group"
-              >
-                <link.icon className="w-4 h-4 text-brand-cyan group-hover:scale-110 transition-transform" />
-                {link.name}
-              </a>
-            ))}
-          </div>
-        </PopoverContent>
-      </Popover>
+      {!isActive && (
+        <Popover>
+            <PopoverTrigger asChild>
+            <Button size="icon" className="rounded-full h-10 w-10 bg-black/40 border border-white/10 backdrop-blur-md hover:bg-brand-cyan/20 mb-2">
+                <ExternalLink className="w-4 h-4 text-brand-cyan" />
+            </Button>
+            </PopoverTrigger>
+            <PopoverContent side="left" className="w-48 bg-[#18181b] border-white/10 p-1">
+                {QUICK_LINKS.map(link => (
+                    <a key={link.name} href={link.url} target="_blank" className="flex items-center gap-2 p-2 hover:bg-white/5 rounded text-xs text-white">
+                        <link.icon className="w-3 h-3" /> {link.name}
+                    </a>
+                ))}
+            </PopoverContent>
+        </Popover>
+      )}
 
       {/* Timer Principal */}
       <Popover>
@@ -117,75 +148,83 @@ export function FloatingTimer() {
           <Button 
             size="icon" 
             className={cn(
-              "rounded-full h-14 w-14 transition-all duration-500 border-2 shadow-2xl relative overflow-hidden",
-              isActive 
-                ? "border-brand-violet shadow-[0_0_20px_rgba(139,92,246,0.3)]" 
-                : "border-white/10 bg-black/40 shadow-lg"
+              "rounded-full h-16 w-16 transition-all border-2 shadow-2xl relative",
+              isActive ? "border-brand-violet shadow-neon-violet bg-black" : "border-white/10 bg-black/60"
             )}
           >
-            {/* Overlay de Progresso Visual */}
-            {isActive && (
-                <div 
-                    className="absolute bottom-0 left-0 w-full bg-brand-violet/10 transition-all duration-1000" 
-                    style={{ height: `${(timeLeft / (mode === 'work' ? 1500 : 300)) * 100}%` }}
+            {/* Visual Circular Progress (SVG simples) */}
+            <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none">
+                <circle cx="32" cy="32" r="28" fill="none" strokeWidth="2" stroke="#2a2a2a" />
+                <circle 
+                    cx="32" cy="32" r="28" fill="none" strokeWidth="2" stroke="#8b5cf6" 
+                    strokeDasharray="175"
+                    strokeDashoffset={175 - (175 * timeLeft / (mode === 'work' ? customMinutes * 60 : 300))}
+                    className="transition-all duration-1000 ease-linear"
                 />
-            )}
+            </svg>
             
-            <div className="relative z-10 flex items-center justify-center">
-              {mode === 'work' ? (
-                  <Timer className={cn("w-6 h-6", isActive ? "text-brand-violet" : "text-white")} />
-              ) : (
-                  <Coffee className="w-6 h-6 text-brand-cyan" />
-              )}
-              {isActive && (
-                <span className="absolute -top-6 -right-2 bg-brand-violet text-[10px] px-2 py-0.5 rounded-full font-black animate-in zoom-in">
-                  {formatTime(timeLeft)}
+            <div className="flex flex-col items-center justify-center relative z-10">
+                <span className="text-xs font-bold text-white tabular-nums leading-none mb-0.5">
+                    {formatTime(timeLeft)}
                 </span>
-              )}
+                <span className="text-[7px] uppercase text-muted-foreground font-bold tracking-wider">
+                    {isActive ? (mode === 'work' ? 'Foco' : 'Pausa') : 'Start'}
+                </span>
             </div>
           </Button>
         </PopoverTrigger>
-        <PopoverContent side="left" className="w-64 p-5 bg-[#09090b]/98 border-white/10 backdrop-blur-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-[2rem]">
-          <div className="text-center space-y-5">
-            <div className="flex justify-center">
-              <Badge 
-                variant="outline" 
-                className={cn(
-                    "px-3 py-1 border-brand-violet/30 text-brand-violet bg-brand-violet/5",
-                    mode === 'break' && "border-brand-cyan/30 text-brand-cyan bg-brand-cyan/5"
-                )}
-              >
-                {mode === 'work' ? <Zap className="w-3 h-3 mr-2" /> : <Coffee className="w-3 h-3 mr-2" />}
-                {mode === 'work' ? 'MODO FOCO' : 'PAUSA ATIVA'}
-              </Badge>
+        <PopoverContent side="left" className="w-72 bg-[#09090b]/95 border-white/10 backdrop-blur-xl p-6 rounded-3xl mr-4 shadow-2xl">
+          <div className="flex flex-col gap-6">
+            <div className="flex justify-between items-center border-b border-white/5 pb-4">
+                <span className="text-sm font-semibold text-white flex items-center gap-2">
+                    <Timer className="w-4 h-4 text-brand-violet" />
+                    Focus OS
+                </span>
+                <Badge variant="outline" className={cn("text-[10px]", mode === 'work' ? "border-brand-violet text-brand-violet" : "border-brand-cyan text-brand-cyan")}>
+                    {mode === 'work' ? 'WORK MODE' : 'BREAK TIME'}
+                </Badge>
             </div>
 
-            <div className="text-6xl font-black text-white font-mono tracking-tighter tabular-nums drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]">
-              {formatTime(timeLeft)}
+            <div className="text-center">
+                <div className="text-7xl font-mono font-black text-white tracking-tighter tabular-nums">
+                    {formatTime(timeLeft)}
+                </div>
             </div>
 
-            <div className="flex justify-center gap-3">
+            {/* Inputs de Configuração (Só aparece se pausado e em modo work) */}
+            {!isActive && mode === 'work' && (
+                <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl">
+                    <span className="text-xs text-muted-foreground">Duração (min):</span>
+                    <Input 
+                        type="number" 
+                        value={customMinutes} 
+                        onChange={handleCustomTimeChange}
+                        className="w-20 h-8 bg-black/40 border-white/10 text-center text-white text-sm" 
+                    />
+                </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
               <Button 
-                size="icon" 
-                className={cn(
-                    "rounded-full h-12 w-12 transition-all",
-                    isActive ? "bg-white/10 text-white" : "bg-brand-violet text-white shadow-neon-violet"
-                )}
+                size="lg" 
+                className={cn("rounded-xl font-bold transition-all", isActive ? "bg-white/10 hover:bg-white/20" : "bg-brand-violet hover:bg-brand-violet/80 shadow-neon-violet")}
                 onClick={() => setIsActive(!isActive)}
               >
-                {isActive ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 fill-current" />}
+                {isActive ? <Pause className="w-5 h-5 mr-2" /> : <Play className="w-5 h-5 mr-2 fill-current" />}
+                {isActive ? 'Pausar' : 'Iniciar'}
               </Button>
-              
               <Button 
-                size="icon" 
-                variant="ghost" 
-                className="rounded-full h-12 w-12 text-muted-foreground hover:bg-white/5"
+                size="lg" 
+                variant="outline" 
+                className="rounded-xl border-white/10 hover:bg-white/5"
                 onClick={() => {
                   setIsActive(false)
-                  setTimeLeft(mode === 'work' ? 25 * 60 : 5 * 60)
+                  localStorage.removeItem('pomodoro_target')
+                  setTimeLeft(mode === 'work' ? customMinutes * 60 : 5 * 60)
                 }}
               >
-                <RotateCcw className="w-5 h-5" />
+                <RotateCcw className="w-5 h-5 mr-2" />
+                Resetar
               </Button>
             </div>
           </div>

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useTransition } from 'react'
 import type { Task, Category, TaskPriority, TaskStatus, TeamMember } from '@/lib/types'
-import { updateTask } from '@/lib/actions/tasks'
+import { updateTask, createTask } from '@/lib/actions/tasks' // Certifique-se de ter createTask
 import {
   Dialog,
   DialogContent,
@@ -32,15 +32,24 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
 
+// Interface flexível para aceitar nulos (Modo Criação)
 interface TaskEditDialogProps {
-  task: Task | null
-  categories: Category[]
+  task?: Task | null
+  categories?: Category[]
   teamMembers?: TeamMember[]
   open: boolean
   onOpenChange: (open: boolean) => void
+  defaultParentId?: string | null
 }
 
-export function TaskEditDialog({ task, categories, teamMembers = [], open, onOpenChange }: TaskEditDialogProps) {
+export function TaskEditDialog({ 
+  task = null, 
+  categories = [], 
+  teamMembers = [], 
+  open, 
+  onOpenChange,
+  defaultParentId = null
+}: TaskEditDialogProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [status, setStatus] = useState<TaskStatus>('todo')
@@ -50,46 +59,76 @@ export function TaskEditDialog({ task, categories, teamMembers = [], open, onOpe
   const [dueDate, setDueDate] = useState<Date | undefined>()
   const [estimatedMinutes, setEstimatedMinutes] = useState<string>('')
   const [isPending, startTransition] = useTransition()
+  const [parentId, setParentId] = useState<string | null>(defaultParentId)
 
+  // Reseta ou popula o formulário quando abre
   useEffect(() => {
-    if (task) {
-      setTitle(task.title)
-      setDescription(task.description || '')
-      setStatus(task.status)
-      setPriority(task.priority)
-      setCategoryId(task.category_id || 'none')
-      setAssigneeId(task.assignee_id || 'none')
-      setDueDate(task.due_date ? new Date(task.due_date) : undefined)
-      setEstimatedMinutes(task.estimated_minutes?.toString() || '')
+    if (open) {
+      if (task) {
+        // Modo Edição
+        setTitle(task.title)
+        setDescription(task.description || '')
+        setStatus(task.status)
+        setPriority(task.priority)
+        setCategoryId(task.category_id || 'none')
+        setAssigneeId(task.assignee_id || 'none')
+        setDueDate(task.due_date ? new Date(task.due_date) : undefined)
+        setEstimatedMinutes(task.estimated_minutes?.toString() || '')
+        setParentId(task.parent_id || null)
+      } else {
+        // Modo Criação (Limpar campos)
+        setTitle('')
+        setDescription('')
+        setStatus('todo')
+        setPriority('medium')
+        setCategoryId('none')
+        setAssigneeId('none')
+        setDueDate(undefined)
+        setEstimatedMinutes('')
+        setParentId(defaultParentId)
+      }
     }
-  }, [task])
+  }, [task, open])
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
-    if (!task || !title.trim()) return
+    if (!title.trim()) return
 
     startTransition(async () => {
-      const result = await updateTask(task.id, {
+      const payload = {
         title: title.trim(),
         description: description.trim() || null,
         status,
         priority,
+        parent_id: parentId,
         category_id: categoryId === 'none' ? null : categoryId,
         assignee_id: assigneeId === 'none' ? null : assigneeId,
         due_date: dueDate?.toISOString() || null,
         estimated_minutes: estimatedMinutes ? parseInt(estimatedMinutes) : null,
-      })
-
-      if (result.error) {
-        toast.error('Erro ao atualizar tarefa', {
-          description: result.error,
-        })
-        return
       }
 
-      toast.success('Tarefa atualizada!')
-      onOpenChange(false)
+      try {
+        let result
+        
+        if (task) {
+          // Atualizar existente
+          result = await updateTask(task.id, payload)
+        } else {
+          // Criar nova (Você precisa garantir que essa função exista em @/lib/actions/tasks)
+          result = await createTask(payload)
+        }
+
+        if (result?.error) {
+          toast.error('Erro ao salvar', { description: result.error })
+          return
+        }
+
+        toast.success(task ? 'Tarefa atualizada!' : 'Tarefa criada com sucesso!')
+        onOpenChange(false)
+      } catch (error) {
+        toast.error('Erro inesperado ao salvar tarefa.')
+      }
     })
   }
 
@@ -97,18 +136,30 @@ export function TaskEditDialog({ task, categories, teamMembers = [], open, onOpe
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Editar Tarefa</DialogTitle>
+          <DialogTitle>{task ? 'Editar Tarefa' : 'Nova Tarefa'}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="title">Titulo</Label>
-            <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nome da tarefa" required />
+            <Label htmlFor="title">Título</Label>
+            <Input 
+              id="title" 
+              value={title} 
+              onChange={(e) => setTitle(e.target.value)} 
+              placeholder="O que precisa ser feito?" 
+              required 
+            />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">Descricao</Label>
-            <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descricao opcional" rows={3} />
+            <Label htmlFor="description">Descrição</Label>
+            <Textarea 
+              id="description" 
+              value={description} 
+              onChange={(e) => setDescription(e.target.value)} 
+              placeholder="Detalhes adicionais..." 
+              rows={3} 
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -121,7 +172,7 @@ export function TaskEditDialog({ task, categories, teamMembers = [], open, onOpe
                 <SelectContent>
                   <SelectItem value="todo">A Fazer</SelectItem>
                   <SelectItem value="in_progress">Em Andamento</SelectItem>
-                  <SelectItem value="done">Concluida</SelectItem>
+                  <SelectItem value="done">Concluída</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -134,7 +185,7 @@ export function TaskEditDialog({ task, categories, teamMembers = [], open, onOpe
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="low">Baixa</SelectItem>
-                  <SelectItem value="medium">Media</SelectItem>
+                  <SelectItem value="medium">Média</SelectItem>
                   <SelectItem value="high">Alta</SelectItem>
                   <SelectItem value="urgent">Urgente</SelectItem>
                 </SelectContent>
@@ -164,7 +215,7 @@ export function TaskEditDialog({ task, categories, teamMembers = [], open, onOpe
             </div>
 
             <div className="space-y-2">
-              <Label>Tempo Estimado (min)</Label>
+              <Label>Estimativa (min)</Label>
               <Input
                 type="number"
                 value={estimatedMinutes}
@@ -207,7 +258,13 @@ export function TaskEditDialog({ task, categories, teamMembers = [], open, onOpe
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={dueDate} onSelect={setDueDate} initialFocus locale={ptBR} />
+                <Calendar 
+                    mode="single" 
+                    selected={dueDate} 
+                    onSelect={setDueDate} 
+                    initialFocus 
+                    locale={ptBR} 
+                />
               </PopoverContent>
             </Popover>
           </div>
@@ -216,9 +273,9 @@ export function TaskEditDialog({ task, categories, teamMembers = [], open, onOpe
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={isPending}>
+            <Button type="submit" disabled={isPending} className="bg-brand-violet hover:bg-brand-violet/90">
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Salvar
+              {task ? 'Salvar Alterações' : 'Criar Tarefa'}
             </Button>
           </div>
         </form>

@@ -1,35 +1,55 @@
 'use client'
 
-import { useCallback, useMemo } from 'react';
+import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom'; // <--- IMPORTANTE: O Portal
 import ReactFlow, { 
   Background, 
   Controls, 
   MiniMap, 
   useNodesState, 
   useEdgesState, 
-  MarkerType,
+  Position,
   Node,
   Edge
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Category } from '@/lib/types';
+import type { Task, Category } from '@/lib/types';
+import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+import { TaskEditDialog } from '@/components/dashboard/task-edit-dialog';
+import { Edit, GitBranch, X, MousePointerClick, Trash2 } from 'lucide-react';
 
-// Estilo customizado para o nó (Glassmorphism)
+// --- 1. Nó Customizado (Visual Neon) ---
 const CustomNode = ({ data }: any) => {
+  const isUrgent = data.priority === 'urgent';
+  const isDone = data.status === 'done';
+
   return (
-    <div className={`px-4 py-3 rounded-xl border border-white/10 backdrop-blur-md shadow-2xl min-w-[150px] text-center transition-all hover:scale-105 hover:shadow-neon-${data.colorName || 'violet'}`}
-         style={{ backgroundColor: `${data.color}10`, borderColor: data.color }}>
-      <div className="text-xs font-bold uppercase tracking-wider mb-1 opacity-70" style={{ color: data.color }}>
-        {data.type}
+    <div 
+      className={cn(
+        "px-4 py-3 rounded-xl border backdrop-blur-md shadow-2xl min-w-[180px] text-center transition-all group relative overflow-hidden cursor-context-menu",
+        isDone ? "opacity-60 grayscale border-white/10 bg-black/40" : "hover:scale-105 hover:shadow-[0_0_25px_-5px_rgba(139,92,246,0.3)]"
+      )}
+      style={{ 
+        backgroundColor: isDone ? undefined : `${data.color}15`,
+        borderColor: isDone ? undefined : data.color,
+      }}
+    >
+      <div className="text-[9px] font-bold uppercase tracking-widest mb-1 opacity-70" style={{ color: isDone ? '#fff' : data.color }}>
+        {data.categoryName}
       </div>
-      <div className="font-bold text-white text-sm">
+      <div className="font-bold text-white text-sm line-clamp-2 leading-tight">
         {data.label}
       </div>
-      {data.progress !== undefined && (
-        <div className="w-full bg-slate-800 h-1 mt-2 rounded-full overflow-hidden">
-          <div className="h-full transition-all duration-500" 
-               style={{ width: `${data.progress}%`, backgroundColor: data.color }} />
-        </div>
+      <div className="mt-2 flex justify-center gap-2 text-[10px] text-slate-400 font-medium">
+        {data.dueDate && <span>{data.dueDate}</span>}
+        {data.time && <span>• {data.time}m</span>}
+      </div>
+      <div className="w-full bg-white/5 h-1 mt-2 rounded-full overflow-hidden">
+        <div className="h-full transition-all duration-500" style={{ width: isDone ? '100%' : '0%', backgroundColor: isDone ? '#22c55e' : data.color }} />
+      </div>
+      {isUrgent && !isDone && (
+        <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_red]" />
       )}
     </div>
   );
@@ -38,49 +58,162 @@ const CustomNode = ({ data }: any) => {
 const nodeTypes = { custom: CustomNode };
 
 interface ProjectTreeProps {
+  tasks: Task[]
   categories: Category[]
 }
 
-export default function ProjectTree({ categories }: ProjectTreeProps) {
-  // Transformar categorias em "Nós" do gráfico
-  const initialNodes: Node[] = useMemo(() => {
-    return categories.map((cat, index) => ({
-      id: cat.id,
-      type: 'custom',
-      position: { x: 250 * (index % 3), y: 150 * Math.floor(index / 3) }, // Grid simples
-      data: { 
-        label: cat.name, 
-        color: cat.color, 
-        type: 'Matéria',
-        progress: Math.floor(Math.random() * 100) // Mock de progresso (depois ligamos no real)
-      },
-    }));
-  }, [categories]);
+// Componente do Menu separado para usar no Portal
+const ContextMenu = ({ 
+    top, left, onEdit, onAddSubtask, onClose 
+}: { 
+    top: number, left: number, onEdit: () => void, onAddSubtask: () => void, onClose: () => void 
+}) => {
+    return (
+        // Overlay invisível para capturar clique fora e fechar
+        <div className="fixed inset-0 z-[9999]" onClick={onClose} onContextMenu={(e) => e.preventDefault()}>
+            <div
+                style={{ top, left }}
+                className="absolute w-56 rounded-xl border border-white/10 bg-[#121214]/95 backdrop-blur-xl shadow-2xl p-1.5 flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-100"
+                onClick={(e) => e.stopPropagation()} // Não fecha se clicar dentro do menu
+            >
+                <div className="flex justify-between items-center px-2 py-1.5 border-b border-white/5 mb-1">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Opções da Tarefa</span>
+                    <button onClick={onClose} className="hover:bg-white/10 rounded p-0.5 transition-colors">
+                        <X className="w-3 h-3 text-muted-foreground hover:text-white" />
+                    </button>
+                </div>
+                
+                <button
+                    onClick={() => { onEdit(); onClose(); }}
+                    className="flex items-center gap-2 px-2 py-2 text-sm text-white hover:bg-brand-violet/20 hover:text-brand-violet rounded-lg transition-colors text-left"
+                >
+                    <Edit className="w-4 h-4" />
+                    Editar Detalhes
+                </button>
+                
+                <button
+                    onClick={() => { onAddSubtask(); onClose(); }}
+                    className="flex items-center gap-2 px-2 py-2 text-sm text-white hover:bg-brand-cyan/20 hover:text-brand-cyan rounded-lg transition-colors text-left"
+                >
+                    <GitBranch className="w-4 h-4" />
+                    Criar Subtarefa
+                </button>
+            </div>
+        </div>
+    )
+}
 
-  // Criar conexões (Edges) fictícias para demonstração 
-  // (Num app real, você teria uma tabela 'dependencies')
-  const initialEdges: Edge[] = useMemo(() => {
+export function ProjectTree({ tasks, categories }: ProjectTreeProps) {
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [parentIdForNewTask, setParentIdForNewTask] = useState<string | null>(null);
+  
+  const [menu, setMenu] = useState<{ id: string; top: number; left: number } | null>(null);
+  const [mounted, setMounted] = useState(false); // Para o Portal funcionar no client
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const { initialNodes, initialEdges } = useMemo(() => {
+    const nodes: Node[] = [];
     const edges: Edge[] = [];
-    if (categories.length > 1) {
-      // Conecta o primeiro ao segundo só para mostrar a linha
-      edges.push({
-        id: 'e1-2',
-        source: categories[0]?.id,
-        target: categories[1]?.id,
-        animated: true,
-        style: { stroke: '#6366f1' },
-        markerEnd: { type: MarkerType.ArrowClosed, color: '#6366f1' },
+    const catMap = new Map(categories.map(c => [c.id, c]));
+    const siblings: { [key: string]: number } = {};
+
+    tasks.forEach((task, index) => {
+      const category = task.category_id ? catMap.get(task.category_id) : null;
+      const color = category?.color || '#8b5cf6';
+      const parentId = task.parent_id || 'root';
+      
+      if (!siblings[parentId]) siblings[parentId] = 0;
+      
+      const x = (index % 4) * 240; 
+      const y = Math.floor(index / 4) * 180;
+
+      nodes.push({
+        id: task.id,
+        type: 'custom',
+        position: { x, y },
+        data: { 
+          label: task.title, 
+          color: color, 
+          categoryName: category?.name || 'Geral',
+          priority: task.priority,
+          status: task.status,
+          dueDate: task.due_date ? format(new Date(task.due_date), 'dd/MM') : null,
+          time: task.estimated_minutes
+        },
+        sourcePosition: Position.Bottom,
+        targetPosition: Position.Top,
       });
-    }
-    return edges;
-  }, [categories]);
+
+      if (task.parent_id) {
+        edges.push({
+          id: `e-${task.parent_id}-${task.id}`,
+          source: task.parent_id,
+          target: task.id,
+          animated: true,
+          style: { stroke: '#ffffff30', strokeWidth: 1.5 },
+          type: 'smoothstep', 
+        });
+      }
+    });
+    return { initialNodes: nodes, initialEdges: edges };
+  }, [tasks, categories]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
+  const onNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: Node) => {
+      event.preventDefault();
+      
+      // Cálculos para evitar que o menu saia da tela
+      const MENU_WIDTH = 224; // 56 * 4
+      const MENU_HEIGHT = 150;
+      
+      let x = event.clientX;
+      let y = event.clientY;
+
+      if (x + MENU_WIDTH > window.innerWidth) {
+          x -= MENU_WIDTH;
+      }
+      if (y + MENU_HEIGHT > window.innerHeight) {
+          y -= MENU_HEIGHT;
+      }
+
+      setMenu({
+        id: node.id,
+        top: y,
+        left: x,
+      });
+    },
+    [setMenu]
+  );
+
+  const onPaneClick = useCallback(() => setMenu(null), [setMenu]);
+
+  const handleEdit = () => {
+      if (!menu) return;
+      const task = tasks.find(t => t.id === menu.id);
+      if (task) {
+          setEditingTask(task);
+          setParentIdForNewTask(null);
+          setModalOpen(true);
+      }
+  };
+
+  const handleAddSubtask = () => {
+      if (!menu) return;
+      setEditingTask(null);
+      setParentIdForNewTask(menu.id);
+      setModalOpen(true);
+  };
+
   return (
-    <div className="h-[calc(100vh-10rem)] w-full border border-white/5 rounded-xl overflow-hidden bg-slate-950 shadow-2xl relative group">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-500/5 via-transparent to-transparent opacity-50 pointer-events-none" />
+    <div className="h-full w-full rounded-2xl overflow-hidden bg-[#09090b] relative group">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-500/5 via-[#09090b] to-[#09090b] pointer-events-none z-0" />
       
       <ReactFlow
         nodes={nodes}
@@ -89,21 +222,50 @@ export default function ProjectTree({ categories }: ProjectTreeProps) {
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
         fitView
-        className="bg-slate-950"
+        className="bg-transparent z-10"
+        minZoom={0.5}
+        maxZoom={2}
+        onNodeContextMenu={onNodeContextMenu}
+        onPaneClick={onPaneClick}
+        onNodeClick={onPaneClick}
       >
-        <Background color="#334155" gap={20} size={1} />
-        <Controls className="bg-slate-900 border-slate-800 fill-white" />
+        <Background color="#334155" gap={30} size={1} className="opacity-10" />
+        <Controls className="bg-[#121214] border-white/10 fill-white rounded-xl shadow-xl" />
         <MiniMap 
           nodeColor={(n) => n.data.color} 
-          className="bg-slate-900 border border-slate-800 rounded-lg"
-          maskColor="rgba(0, 0, 0, 0.7)"
+          className="bg-[#121214] border border-white/10 rounded-xl"
+          maskColor="rgba(0, 0, 0, 0.6)"
         />
       </ReactFlow>
       
-      <div className="absolute top-4 left-4 pointer-events-none">
-         <h3 className="text-white font-bold text-lg drop-shadow-lg">Mapa de Conhecimento</h3>
-         <p className="text-slate-400 text-xs">Visualize as dependências entre matérias.</p>
+      {/* O PORTAL MÁGICO: Renderiza o menu direto no body, fora de qualquer overflow */}
+      {mounted && menu && createPortal(
+          <ContextMenu 
+            top={menu.top} 
+            left={menu.left} 
+            onClose={() => setMenu(null)}
+            onEdit={handleEdit}
+            onAddSubtask={handleAddSubtask}
+          />,
+          document.body
+      )}
+
+      <div className="absolute top-6 left-6 pointer-events-none z-20">
+         <h3 className="text-white font-bold text-xl drop-shadow-lg flex items-center gap-2">
+            <span className="text-brand-violet animate-pulse">●</span> Rede Neural
+         </h3>
+         <p className="text-slate-500 text-xs mt-1 flex items-center gap-1">
+            <MousePointerClick className="w-3 h-3" /> Clique Direito para Opções
+         </p>
       </div>
+
+      <TaskEditDialog 
+          open={modalOpen} 
+          onOpenChange={setModalOpen}
+          task={editingTask}
+          categories={categories}
+          defaultParentId={parentIdForNewTask}
+       />
     </div>
   );
 }
