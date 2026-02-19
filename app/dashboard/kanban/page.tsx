@@ -2,13 +2,16 @@ import { createClient } from '@/lib/supabase/server'
 import { KanbanView } from '@/components/dashboard/kanban-view'
 import type { TeamMember } from '@/lib/types'
 
+// 1. ATUALIZAÇÃO: searchParams agora é uma Promise no Next.js 15+
 interface KanbanPageProps {
-  searchParams: {
+  searchParams: Promise<{
     team?: string
-  }
+  }>
 }
 
-export default async function KanbanPage({ searchParams }: KanbanPageProps) {
+export default async function KanbanPage(props: KanbanPageProps) {
+  // 2. ATUALIZAÇÃO: Precisamos aguardar (await) os searchParams antes de usá-los
+  const searchParams = await props.searchParams
   const teamId = searchParams.team
 
   const supabase = await createClient()

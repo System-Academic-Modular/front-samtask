@@ -1,13 +1,35 @@
-import React from 'react'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { DashboardSidebar } from '@/components/dashboard/sidebar'
-import { DashboardHeader } from '@/components/dashboard/header'
 import { SidebarProvider } from '@/components/dashboard/sidebar-context'
-import { TaskContextProvider } from '@/components/dashboard/task-context'
-import { getTaskContextValue } from '@/lib/task-context'
-import { FloatingTimer } from '@/components/dashboard/floating-timer'
-import { getUserStreak } from '@/lib/actions/streak' // Vamos criar essa action no passo 3
+import { MobileHeader } from '@/components/dashboard/mobile-header' // <-- TEM QUE IMPORTAR AQUI
+import { differenceInDays, startOfDay, subDays } from 'date-fns'
+
+// Função do Streak...
+async function calculateRealStreak(supabase: any, userId: string) {
+  const { data: sessions } = await supabase.from('focus_sessions').select('completed_at').eq('user_id', userId).order('completed_at', { ascending: false }).limit(30)
+  if (!sessions || sessions.length === 0) return 0
+  let streak = 0
+  let currentDate = startOfDay(new Date()) 
+  let hasSessionToday = false
+  const uniqueTimes = Array.from<number>(new Set(sessions.map((s: any) => startOfDay(new Date(s.completed_at)).getTime())))
+  const uniqueDates = uniqueTimes.map((time) => new Date(time))
+  if (uniqueDates.length > 0 && uniqueDates[0].getTime() === currentDate.getTime()) {
+    hasSessionToday = true
+    streak = 1
+    uniqueDates.shift()
+  }
+  let checkDate = subDays(currentDate, 1)
+  for (const date of uniqueDates) {
+    if (date.getTime() === checkDate.getTime()) {
+      streak++
+      checkDate = subDays(checkDate, 1)
+    } else {
+      break
+    }
+  }
+  return streak
+}
 
 export default async function DashboardLayout({
   children,
@@ -15,57 +37,38 @@ export default async function DashboardLayout({
   children: React.ReactNode
 }) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (!user) {
     redirect('/auth/login')
   }
 
-  // 1. Buscas em Paralelo para Performance (Profile + Teams + Streak)
-  const [profileResult, teamRowsResult, streakResult] = await Promise.all([
-    supabase.from('profiles').select('*').eq('id', user.id).single(),
-    supabase.from('team_members').select('team_id').eq('user_id', user.id),
-    getUserStreak() // <--- Nova action de Streak
-  ])
-
-  const profile = profileResult.data
-  const teamRows = teamRowsResult.data || []
-  const currentStreak = streakResult || 0
-
-  const teamIds = teamRows.map((row) => row.team_id)
-  const { data: teamsData } = teamIds.length
-    ? await supabase.from('teams').select('id,name').in('id', teamIds)
-    : { data: [] }
-
-  const taskContextValue = await getTaskContextValue()
-  
-  const teamOptions = (teamsData || []).map((team) => ({
-    id: team.id,
-    name: team.name,
-  }))
+  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+  const currentStreak = await calculateRealStreak(supabase, user.id)
 
   return (
-    <TaskContextProvider initialValue={taskContextValue} teams={teamOptions}>
-      <SidebarProvider>
-        <div className="flex h-screen overflow-hidden bg-[#09090b] relative">
-          {/* Passamos o streak calculado para a Sidebar */}
-          <DashboardSidebar user={user} profile={profile} streak={currentStreak} />
-
-          <div className="flex-1 flex flex-col min-w-0 relative">
-            <DashboardHeader user={user} profile={profile} />
-            
-            {/* CORREÇÃO DE INTERAÇÃO: Scroll fica aqui, com padding embaixo */}
-            <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 pb-32 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+    <SidebarProvider>
+      <div className="min-h-screen bg-[#09090b] text-white flex overflow-hidden">
+        
+        {/* A Sidebar fica recolhida escondida no mobile */}
+        <DashboardSidebar user={user} profile={profile} streak={currentStreak} />
+        
+        <main className="flex-1 flex flex-col min-w-0 h-[100dvh]">
+          
+          {/* AQUI ENTRA O HEADER MOBILE (Fora da Sidebar!) */}
+          <MobileHeader /> 
+          
+          <div className="flex-1 overflow-auto p-4 md:p-8 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+            <div className="max-w-7xl mx-auto h-full">
               {children}
-            </main>
-
-            {/* Timer flutuante com pointer-events controlado */}
-            <div className="pointer-events-none fixed inset-0 z-50 overflow-hidden">
-                <FloatingTimer />
             </div>
           </div>
-        </div>
-      </SidebarProvider>
-    </TaskContextProvider>
+
+        </main>
+      </div>
+    </SidebarProvider>
   )
 }
