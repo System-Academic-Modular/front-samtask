@@ -1,7 +1,7 @@
 'use client'
 
 import { useTransition } from 'react'
-import type { Task } from '@/lib/types'
+import type { Tarefa } from '@/lib/types'
 import { updateTask, deleteTask } from '@/lib/actions/tasks'
 import { Card, CardContent } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -21,40 +21,42 @@ import { cn } from '@/lib/utils'
 import confetti from 'canvas-confetti'
 
 interface TaskItemProps {
-  task: Task
+  task: Tarefa
   onEdit: () => void
   showCompleted?: boolean
 }
 
+// Mapeamento atualizado para os novos Enums em Português
 const priorityColors = {
-  low: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-  medium: 'bg-brand-cyan/10 text-brand-cyan border-brand-cyan/20',
-  high: 'bg-brand-amber/10 text-brand-amber border-brand-amber/20',
-  urgent: 'bg-red-500/10 text-red-500 border-red-500/20',
+  BAIXA: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+  MEDIA: 'bg-brand-cyan/10 text-brand-cyan border-brand-cyan/20',
+  ALTA: 'bg-brand-amber/10 text-brand-amber border-brand-amber/20',
+  URGENTE: 'bg-red-500/10 text-red-500 border-red-500/20 animate-pulse',
 }
 
 const priorityLabels = {
-  low: 'Baixa',
-  medium: 'Média',
-  high: 'Alta',
-  urgent: 'Urgente',
+  BAIXA: 'Baixa',
+  MEDIA: 'Média',
+  ALTA: 'Alta',
+  URGENTE: 'Urgente',
 }
 
 export function TaskItem({ task, onEdit, showCompleted }: TaskItemProps) {
   const [isPending, startTransition] = useTransition()
-  const isCompleted = task.status === 'done'
+  const isCompleted = task.STATUS === 'CONCLUIDO'
 
   function handleToggleComplete() {
     startTransition(async () => {
-      const newStatus = isCompleted ? 'todo' : 'done'
-      const result = await updateTask(task.id, { status: newStatus })
+      const newStatus = isCompleted ? 'TODO' : 'CONCLUIDO'
+      // Atenção: Sua action updateTask no backend precisará ser ajustada para o novo padrão
+      const result = await updateTask(task.KEY_TAREFA, { STATUS: newStatus })
       
       if (result.error) {
         toast.error('Erro ao atualizar tarefa')
         return
       }
 
-      if (newStatus === 'done') {
+      if (newStatus === 'CONCLUIDO') {
         confetti({
           particleCount: 40,
           spread: 70,
@@ -70,7 +72,7 @@ export function TaskItem({ task, onEdit, showCompleted }: TaskItemProps) {
 
   function handleDelete() {
     startTransition(async () => {
-      const result = await deleteTask(task.id)
+      const result = await deleteTask(task.KEY_TAREFA)
       if (result.error) {
         toast.error('Erro ao excluir tarefa')
         return
@@ -79,10 +81,10 @@ export function TaskItem({ task, onEdit, showCompleted }: TaskItemProps) {
     })
   }
 
-  const dueDate = task.due_date ? new Date(task.due_date) : null
+  const dueDate = task.DATA_VENCIMENTO ? new Date(task.DATA_VENCIMENTO) : null
   const isOverdue = dueDate && dueDate < new Date() && !isCompleted
 
-  // Helper para pegar as iniciais do nome
+  // Helper para pegar as iniciais do nome do responsável
   const getInitials = (name: string | null) => {
     if (!name) return '?'
     return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2)
@@ -91,8 +93,8 @@ export function TaskItem({ task, onEdit, showCompleted }: TaskItemProps) {
   return (
     <Card className={cn(
       'transition-all duration-300 group relative overflow-hidden bg-card/40 border-white/5 hover:border-brand-violet/40 hover:shadow-lg hover:shadow-brand-violet/5',
-      isPending && 'opacity-50 pointer-events-none',
-      isCompleted && 'bg-white/[0.02]'
+      isPending && 'opacity-50 pointer-events-none scale-[0.98]',
+      isCompleted && 'bg-white/[0.02] grayscale-[0.5] hover:grayscale-0'
     )}>
       {/* Indicador lateral de status */}
       <div className={cn(
@@ -100,13 +102,16 @@ export function TaskItem({ task, onEdit, showCompleted }: TaskItemProps) {
         isCompleted ? "bg-brand-emerald" : "bg-transparent group-hover:bg-brand-violet/40"
       )} />
 
-      <CardContent className="p-4">
+      <CardContent className="p-4 pl-5">
         <div className="flex items-start gap-4">
-          <div className="flex flex-col items-center gap-2 mt-1">
+          <div className="flex flex-col items-center gap-2 mt-1 relative z-10">
             <Checkbox
               checked={isCompleted}
               onCheckedChange={handleToggleComplete}
-              className="h-5 w-5 border-white/20 data-[state=checked]:bg-brand-emerald data-[state=checked]:border-brand-emerald"
+              className={cn(
+                "h-5 w-5 border-white/20 transition-all rounded-md data-[state=checked]:bg-brand-emerald data-[state=checked]:border-brand-emerald",
+                !isCompleted && "hover:border-brand-violet/50 hover:bg-brand-violet/10"
+              )}
             />
           </div>
           
@@ -114,52 +119,52 @@ export function TaskItem({ task, onEdit, showCompleted }: TaskItemProps) {
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 space-y-1">
                 <h3 className={cn(
-                  'font-semibold text-base transition-all',
-                  isCompleted ? 'text-muted-foreground line-through' : 'text-white'
+                  'font-semibold text-base transition-all duration-300',
+                  isCompleted ? 'text-muted-foreground line-through' : 'text-white group-hover:text-brand-cyan transition-colors'
                 )}>
-                  {task.title}
+                  {task.TITULO}
                 </h3>
                 
-                {task.description && (
+                {task.DESCRICAO && (
                   <p className={cn(
-                    'text-sm text-muted-foreground line-clamp-2 leading-relaxed',
+                    'text-sm text-muted-foreground line-clamp-2 leading-relaxed transition-opacity',
                     isCompleted && 'opacity-50'
                   )}>
-                    {task.description}
+                    {task.DESCRICAO}
                   </p>
                 )}
 
                 <div className="flex flex-wrap items-center gap-3 mt-4">
-                  {/* Badge de Prioridade Melhorado */}
-                  <Badge variant="outline" className={cn("text-[10px] font-bold uppercase tracking-wider h-5", priorityColors[task.priority])}>
-                    {priorityLabels[task.priority]}
+                  {/* Badge de Prioridade */}
+                  <Badge variant="outline" className={cn("text-[10px] font-bold uppercase tracking-wider h-5", priorityColors[task.PRIORIDADE])}>
+                    {priorityLabels[task.PRIORIDADE]}
                   </Badge>
 
                   {/* Badge de Categoria */}
-                  {task.category && (
+                  {task.CATEGORIA && (
                     <Badge 
                       variant="outline"
                       className="text-[10px] h-5 bg-black/20"
-                      style={{ borderColor: `${task.category.color}40`, color: task.category.color }}
+                      style={{ borderColor: `${task.CATEGORIA.COR}40`, color: task.CATEGORIA.COR }}
                     >
-                      <div className="w-1.5 h-1.5 rounded-full mr-1.5" style={{ backgroundColor: task.category.color }} />
-                      {task.category.name}
+                      <div className="w-1.5 h-1.5 rounded-full mr-1.5" style={{ backgroundColor: task.CATEGORIA.COR }} />
+                      {task.CATEGORIA.NOME}
                     </Badge>
                   )}
 
                   {/* Estimativa de Tempo */}
-                  {task.estimated_minutes && (
-                    <span className="text-[11px] text-muted-foreground flex items-center gap-1.5 bg-white/5 px-2 py-0.5 rounded-full">
+                  {task.MINUTOS_ESTIMADOS && (
+                    <span className="text-[11px] text-muted-foreground flex items-center gap-1.5 bg-white/5 px-2 py-0.5 rounded-full border border-white/5">
                       <Clock className="w-3 h-3 text-brand-cyan" />
-                      {task.estimated_minutes}m
+                      {task.MINUTOS_ESTIMADOS}m
                     </span>
                   )}
 
                   {/* Data de Entrega */}
                   {dueDate && (
                     <span className={cn(
-                      'text-[11px] flex items-center gap-1.5 px-2 py-0.5 rounded-full',
-                      isOverdue ? 'bg-red-500/10 text-red-500' : 'bg-white/5 text-muted-foreground'
+                      'text-[11px] flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-white/5',
+                      isOverdue ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-white/5 text-muted-foreground'
                     )}>
                       <Calendar className="w-3 h-3" />
                       {dueDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
@@ -167,15 +172,15 @@ export function TaskItem({ task, onEdit, showCompleted }: TaskItemProps) {
                   )}
 
                   {/* AVATAR DO RESPONSÁVEL (Assignee) */}
-                  {task.assignee && (
-                    <div className="flex items-center gap-2 ml-auto group/assignee">
+                  {task.RESPONSAVEL && (
+                    <div className="flex items-center gap-2 ml-auto group/assignee cursor-pointer" title={`Responsável: ${task.RESPONSAVEL.NOME}`}>
                       <span className="text-[10px] text-muted-foreground font-medium hidden sm:inline-block opacity-0 group-hover:opacity-100 transition-opacity">
-                        {task.assignee.full_name?.split(' ')[0]}
+                        {task.RESPONSAVEL.NOME?.split(' ')[0]}
                       </span>
-                      <Avatar className="h-6 w-6 border border-white/10 ring-2 ring-transparent group-hover/assignee:ring-brand-violet/30 transition-all">
-                        <AvatarImage src={task.assignee.avatar_url || ''} />
+                      <Avatar className="h-6 w-6 border border-white/10 ring-2 ring-transparent group-hover/assignee:ring-brand-violet/30 transition-all shadow-sm">
+                        <AvatarImage src={task.RESPONSAVEL.AVATAR_URL || ''} />
                         <AvatarFallback className="text-[9px] bg-brand-violet/20 text-brand-violet font-bold">
-                          {getInitials(task.assignee.full_name)}
+                          {getInitials(task.RESPONSAVEL.NOME)}
                         </AvatarFallback>
                       </Avatar>
                     </div>
@@ -183,15 +188,16 @@ export function TaskItem({ task, onEdit, showCompleted }: TaskItemProps) {
                 </div>
               </div>
 
-              <div className="flex flex-col items-end gap-2">
+              {/* Botões de Ação */}
+              <div className="flex flex-col items-end gap-2 relative z-10">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-white hover:bg-white/10 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-40 bg-[#18181b] border-white/10">
-                    <DropdownMenuItem onClick={onEdit} className="cursor-pointer">
+                  <DropdownMenuContent align="end" className="w-40 bg-[#18181b] border-white/10 shadow-2xl">
+                    <DropdownMenuItem onClick={onEdit} className="cursor-pointer focus:bg-white/10 focus:text-white">
                       <Pencil className="mr-2 h-4 w-4 text-brand-cyan" />
                       Editar
                     </DropdownMenuItem>

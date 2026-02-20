@@ -1,52 +1,45 @@
 import { createClient } from '@/lib/supabase/server'
 import { TimelineView } from '@/components/dashboard/timeline-view'
 import { EmotionalCheckinPrompt } from '@/components/dashboard/emotional-checkin-prompt'
-import { HeaderActions } from '@/components/dashboard/header-actions'
 import { Separator } from '@/components/ui/separator'
 import { CheckCircle2, Flame, Target, Zap } from 'lucide-react'
-import { differenceInDays, startOfDay, subDays } from 'date-fns'
+import { startOfDay, subDays } from 'date-fns'
 
-// --- FUNÇÃO AUXILIAR PARA CALCULAR O STREAK REAL ---
-// --- FUNÇÃO AUXILIAR PARA CALCULAR O STREAK REAL ---
+// --- FUNÇÃO AUXILIAR PARA CALCULAR O STREAK REAL (ATUALIZADA) ---
 async function calculateRealStreak(supabase: any, userId: string) {
-  // Busca os últimos 30 dias de sessões de foco do usuário, ordenados do mais recente
   const { data: sessions } = await supabase
-    .from('focus_sessions')
-    .select('completed_at')
-    .eq('user_id', userId)
-    .order('completed_at', { ascending: false })
+    .from('SESSOES_FOCO')
+    .select('DATA_CONCLUSAO')
+    .eq('KEY_LOGIN', userId)
+    .order('DATA_CONCLUSAO', { ascending: false })
     .limit(30)
 
   if (!sessions || sessions.length === 0) return 0
 
   let streak = 0
-  let currentDate = startOfDay(new Date()) // Começa hoje
+  let currentDate = startOfDay(new Date()) 
   let hasSessionToday = false
 
-  // 💡 CORREÇÃO AQUI: Tipando o Array.from para Array<number>
   const uniqueTimes = Array.from<number>(new Set(
-    sessions.map((s: any) => startOfDay(new Date(s.completed_at)).getTime())
+    sessions.map((s: any) => startOfDay(new Date(s.DATA_CONCLUSAO)).getTime())
   ))
   
-  // Agora o TS sabe que 'time' é um number nativamente
   const uniqueDates = uniqueTimes.map((time) => new Date(time))
 
-  // Verifica se o usuário já focou hoje
   if (uniqueDates.length > 0 && uniqueDates[0].getTime() === currentDate.getTime()) {
     hasSessionToday = true
     streak = 1
-    uniqueDates.shift() // Remove hoje da lista para verificar o passado
+    uniqueDates.shift()
   }
 
-  // Volta no tempo dia após dia para contar o streak
-  let checkDate = subDays(currentDate, 1) // Ontem
+  let checkDate = subDays(currentDate, 1)
 
   for (const date of uniqueDates) {
     if (date.getTime() === checkDate.getTime()) {
       streak++
-      checkDate = subDays(checkDate, 1) // Volta mais um dia
+      checkDate = subDays(checkDate, 1)
     } else {
-      break // Quebrou a sequência
+      break
     }
   }
 
@@ -69,31 +62,35 @@ export default async function DashboardPage() {
   const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite'
   const dateStr = now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
 
-  // 1. QUERIES REAIS
+  // 1. QUERIES REAIS (NOVO PADRÃO DO BANCO)
   const [
     profileResult,
-    tasksResult, 
-    categoriesResult, 
+    tarefasResult, 
     checkinResult,
     doneCountResult
   ] = await Promise.all([
     supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle(),
-    supabase.from('tasks')
-      .select(`*, category:categories(*)`)
-      .eq('user_id', user.id)
-      .neq('status', 'done')
-      .order('priority', { ascending: false })
-      .order('due_date', { ascending: true }),
-    supabase.from('categories').select('*').eq('user_id', user.id),
+    
+    // Busca na nova tabela TAREFAS
+    supabase.from('TAREFAS')
+      .select(`*, CATEGORIA:CATEGORIAS(*)`)
+      .eq('KEY_LOGIN', user.id)
+      .neq('STATUS', 'CONCLUIDO')
+      .order('PRIORIDADE', { ascending: false })
+      .order('DATA_VENCIMENTO', { ascending: true }),
+      
+    // (Ainda usando a antiga tabela de checkins até o back atualizar)
     supabase.from('emotional_checkins')
       .select('*')
       .eq('user_id', user.id)
       .gte('created_at', todayStart.toISOString())
       .lt('created_at', tomorrowStart.toISOString())
-      .order('created_at', { ascending: false }) // Pega o mais recente do dia
+      .order('created_at', { ascending: false }) 
       .limit(1)
       .maybeSingle(),
-    supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('status', 'done')
+      
+    // Contagem de concluídas
+    supabase.from('TAREFAS').select('KEY_TAREFA', { count: 'exact', head: true }).eq('KEY_LOGIN', user.id).eq('STATUS', 'CONCLUIDO')
   ])
 
   // Tratamento do Nome (Mais Robusto)
@@ -103,24 +100,19 @@ export default async function DashboardPage() {
   if (profile?.full_name) {
       const nameParts = profile.full_name.trim().split(/\s+/)
       if (nameParts.length > 0 && nameParts[0].length > 0) {
-          // Garante que o primeiro nome não seja vazio e capitaliza a primeira letra (opcional, mas bom pra UI)
           const rawName = nameParts[0]
           firstName = rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase()
       }
   }
-  const tasks = tasksResult.data || []
-  const categories = categoriesResult.data || []
   
-  // Tratamento do Check-in (Pega o real do banco)
+  const tarefas = tarefasResult.data || []
   const todayCheckin = checkinResult.data
-  
   const totalDone = doneCountResult.count || 0
 
-  // Cálculo de Tarefas para Hoje
-  const tasksForToday = tasks.filter(t => t.due_date && new Date(t.due_date) < tomorrowStart)
+  // Cálculo de Tarefas para Hoje (Usando o novo campo DATA_VENCIMENTO)
+  const tasksForToday = tarefas.filter(t => t.DATA_VENCIMENTO && new Date(t.DATA_VENCIMENTO) < tomorrowStart)
   const pendingTodayCount = tasksForToday.length
   
-  // Cálculo REAL do Streak (Fogo) chamando a função que criamos acima
   const currentStreak = await calculateRealStreak(supabase, user.id)
 
   return (
@@ -136,11 +128,9 @@ export default async function DashboardPage() {
             {dateStr} • Vamos fazer acontecer?
           </p>
         </div>
-        
-        <HeaderActions categories={categories} />
       </div>
 
-      {/* PAINEL DE ESTATÍSTICAS (Dados Reais) */}
+      {/* PAINEL DE ESTATÍSTICAS */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         
         {/* Card 1: Foco do Dia */}
@@ -156,7 +146,7 @@ export default async function DashboardPage() {
             </div>
         </div>
 
-        {/* Card 2: Concluídas (Total Real) */}
+        {/* Card 2: Concluídas */}
         <div className="bg-black/20 border border-white/5 rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden group hover:border-brand-emerald/30 transition-colors">
             <div className="absolute -right-4 -top-4 w-16 h-16 bg-brand-emerald/10 rounded-full blur-2xl group-hover:bg-brand-emerald/20 transition-colors" />
             <div className="flex items-center gap-2 text-muted-foreground mb-3">
@@ -169,7 +159,7 @@ export default async function DashboardPage() {
             </div>
         </div>
 
-        {/* Card 3: Streak (Fogo Real) */}
+        {/* Card 3: Streak */}
         <div className="bg-gradient-to-br from-orange-500/10 to-transparent border border-orange-500/20 rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden group hover:border-orange-500/40 transition-colors col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 text-orange-200/70 mb-3">
                 <Flame className="w-4 h-4 text-orange-500" />
@@ -183,7 +173,7 @@ export default async function DashboardPage() {
             </div>
         </div>
 
-        {/* Card 4: Energia/Check-in Real */}
+        {/* Card 4: Energia */}
         <div className="bg-black/20 border border-white/5 rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden md:col-span-1 col-span-2">
              <div className="flex items-center gap-2 text-muted-foreground mb-3">
                 <Zap className="w-4 h-4 text-brand-cyan" />
@@ -218,8 +208,8 @@ export default async function DashboardPage() {
       
       {/* TIMELINE PRINCIPAL */}
       <div className="relative min-h-[500px]">
-        {tasks && tasks.length > 0 ? (
-           <TimelineView tasks={tasks} categories={categories} />
+        {tarefas && tarefas.length > 0 ? (
+           <TimelineView tasks={tarefas} categories={[]} /> // categories será tratada depois se houver modal aqui
         ) : (
            <div className="flex flex-col items-center justify-center h-64 border border-dashed border-white/10 rounded-3xl bg-white/5 text-center p-8 backdrop-blur-sm">
               <div className="w-16 h-16 bg-brand-violet/10 rounded-full flex items-center justify-center mb-4">
@@ -227,7 +217,6 @@ export default async function DashboardPage() {
               </div>
               <h3 className="text-lg font-semibold text-white mb-2">Tudo limpo por aqui!</h3>
               <p className="text-muted-foreground mb-6 max-w-sm">Você não tem nenhuma tarefa pendente. Aproveite o tempo livre ou adicione novos objetivos.</p>
-              <HeaderActions categories={categories} />
            </div>
         )}
       </div>

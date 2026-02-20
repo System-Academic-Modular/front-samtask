@@ -1,6 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useState } from 'react'
+import { cn } from '@/lib/utils'
 
 type SidebarContextType = {
   isOpen: boolean
@@ -31,4 +32,22 @@ export function useSidebar() {
     throw new Error('useSidebar must be used within a SidebarProvider')
   }
   return context
+}
+
+// ==========================================
+// NOVO: Wrapper exportado direto do Context!
+// ==========================================
+export function SidebarMain({ children }: { children: React.ReactNode }) {
+  const { isOpen } = useSidebar()
+
+  return (
+    <main 
+      className={cn(
+        "flex-1 flex flex-col min-w-0 h-[100dvh] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+        isOpen ? "md:ml-72" : "md:ml-0" // Empurra o conteúdo no Desktop
+      )}
+    >
+      {children}
+    </main>
+  )
 }

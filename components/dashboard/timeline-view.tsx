@@ -11,7 +11,8 @@ import {
   CheckCircle2, 
   Circle, 
   ArrowRight,
-  Loader2
+  Loader2,
+  Target
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -24,35 +25,36 @@ import {
 import { toast } from 'sonner'
 import confetti from 'canvas-confetti'
 import { cn } from '@/lib/utils'
-import type { Task, Category } from '@/lib/types'
+import type { Tarefa, Categoria } from '@/lib/types'
 import { TaskEditDialog } from '@/components/dashboard/task-edit-dialog'
-import { updateTask } from '@/lib/actions/tasks' // Importe a action!
+import { updateTask } from '@/lib/actions/tasks'
+import { ZenMode } from '@/components/dashboard/zen-mode'
 
 interface TimelineViewProps {
-  tasks: Task[]
-  categories?: Category[]
+  tasks: Tarefa[] // Usando a interface atualizada Tarefa
+  categories?: Categoria[]
 }
 
 export function TimelineView({ tasks, categories = [] }: TimelineViewProps) {
-  const [editingTask, setEditingTask] = useState<Task | null>(null)
+  const [editingTask, setEditingTask] = useState<Tarefa | null>(null)
+  const [zenTask, setZenTask] = useState<Tarefa | null>(null)
   const [isPending, startTransition] = useTransition()
   const [processingId, setProcessingId] = useState<string | null>(null)
 
   // Função para Marcar como Concluída Rápido
-  const handleQuickComplete = (e: React.MouseEvent, task: Task) => {
-    e.stopPropagation() // Não abre o modal
-    if (task.status === 'done' || isPending) return
+  const handleQuickComplete = (e: React.MouseEvent, task: Tarefa) => {
+    e.stopPropagation() 
+    if (task.STATUS === 'CONCLUIDO' || isPending) return
 
-    setProcessingId(task.id)
+    setProcessingId(task.KEY_TAREFA)
     startTransition(async () => {
-      const result = await updateTask(task.id, { status: 'done' })
+      // Nota: o updateTask no back-end precisará ser atualizado para receber o padrão novo
+      const result = await updateTask(task.KEY_TAREFA, { STATUS: 'CONCLUIDO' })
       if (result.error) {
         toast.error('Erro ao concluir tarefa')
       } else {
         confetti({
-          particleCount: 50,
-          spread: 60,
-          origin: { y: 0.8 },
+          particleCount: 50, spread: 60, origin: { y: 0.8 },
           colors: ['#0ea5e9', '#10b981', '#f59e0b'],
         })
         toast.success('Tarefa concluída! Boa 🚀')
@@ -62,37 +64,17 @@ export function TimelineView({ tasks, categories = [] }: TimelineViewProps) {
   }
 
   // Helper para Status Visual
-  const getTaskStatusConfig = (task: Task) => {
-    if (task.status === 'done') {
-      return {
-        icon: CheckCircle2,
-        colorClass: "text-brand-emerald",
-        bgClass: "bg-brand-emerald/10",
-        borderClass: "border-brand-emerald/20 ring-brand-emerald/20"
-      }
+  const getTaskStatusConfig = (task: Tarefa) => {
+    if (task.STATUS === 'CONCLUIDO') {
+      return { icon: CheckCircle2, colorClass: "text-brand-emerald", bgClass: "bg-brand-emerald/10", borderClass: "border-brand-emerald/20 ring-brand-emerald/20" }
     }
-    if (task.priority === 'urgent') {
-      return {
-        icon: AlertCircle,
-        colorClass: "text-brand-rose",
-        bgClass: "bg-brand-rose/10",
-        borderClass: "border-brand-rose/20 ring-brand-rose/20"
-      }
+    if (task.PRIORIDADE === 'URGENTE') {
+      return { icon: AlertCircle, colorClass: "text-brand-rose", bgClass: "bg-brand-rose/10", borderClass: "border-brand-rose/20 ring-brand-rose/20" }
     }
-    if (task.status === 'in_progress') {
-      return {
-        icon: Clock,
-        colorClass: "text-brand-violet",
-        bgClass: "bg-brand-violet/10",
-        borderClass: "border-brand-violet/20 ring-brand-violet/20"
-      }
+    if (task.STATUS === 'EM_ANDAMENTO') {
+      return { icon: Clock, colorClass: "text-brand-violet", bgClass: "bg-brand-violet/10", borderClass: "border-brand-violet/20 ring-brand-violet/20" }
     }
-    return {
-      icon: Circle,
-      colorClass: "text-muted-foreground",
-      bgClass: "bg-white/5",
-      borderClass: "border-white/10 ring-white/10"
-    }
+    return { icon: Circle, colorClass: "text-muted-foreground", bgClass: "bg-white/5", borderClass: "border-white/10 ring-white/10" }
   }
 
   // Helper para Data "Humana"
@@ -107,42 +89,38 @@ export function TimelineView({ tasks, categories = [] }: TimelineViewProps) {
 
   return (
     <div className="space-y-0 relative py-4">
-      {/* Linha vertical contínua de fundo (a "trilha") */}
       <div className="absolute left-[19px] top-6 bottom-4 w-px bg-gradient-to-b from-white/10 via-white/10 to-transparent -z-10" />
 
       {tasks.map((task, index) => {
         const config = getTaskStatusConfig(task)
         const StatusIcon = config.icon
-        const isProcessing = processingId === task.id
-        const isTaskLate = task.due_date && isPast(startOfDay(new Date(task.due_date))) && task.status !== 'done'
+        const isProcessing = processingId === task.KEY_TAREFA
+        const isTaskLate = task.DATA_VENCIMENTO && isPast(startOfDay(new Date(task.DATA_VENCIMENTO))) && task.STATUS !== 'CONCLUIDO'
 
         return (
           <div 
-            key={task.id} 
+            key={task.KEY_TAREFA} 
             className="group relative flex gap-4 md:gap-6 pb-6 last:pb-0 animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both"
-            style={{ animationDelay: `${index * 100}ms` }} // Efeito cascata lindo
+            style={{ animationDelay: `${index * 100}ms` }} 
           >
             
-            {/* Coluna do Ícone (Timeline Node) */}
             <div className="flex flex-col items-center mt-1 shrink-0">
               <button 
                 onClick={(e) => handleQuickComplete(e, task)}
-                disabled={task.status === 'done' || isPending}
+                disabled={task.STATUS === 'CONCLUIDO' || isPending}
                 className={cn(
                   "relative flex items-center justify-center w-10 h-10 rounded-full border bg-[#09090b] transition-all duration-300 z-10",
-                  config.colorClass,
-                  config.borderClass,
-                  task.status !== 'done' ? "hover:scale-110 hover:shadow-lg cursor-pointer ring-4 ring-transparent hover:ring-current/20" : "cursor-default"
+                  config.colorClass, config.borderClass,
+                  task.STATUS !== 'CONCLUIDO' ? "hover:scale-110 hover:shadow-lg cursor-pointer ring-4 ring-transparent hover:ring-current/20" : "cursor-default"
                 )}
-                title={task.status === 'done' ? 'Concluída' : 'Marcar como concluída'}
+                title={task.STATUS === 'CONCLUIDO' ? 'Concluída' : 'Marcar como concluída'}
               >
                 {isProcessing ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
-                  // Se passar o mouse e não estiver concluída, mostra o Check
                   <div className="relative flex items-center justify-center w-full h-full">
-                     <StatusIcon className={cn("w-5 h-5 transition-opacity duration-200", task.status !== 'done' && "group-hover/node:opacity-0")} />
-                     {task.status !== 'done' && (
+                     <StatusIcon className={cn("w-5 h-5 transition-opacity duration-200", task.STATUS !== 'CONCLUIDO' && "group-hover/node:opacity-0")} />
+                     {task.STATUS !== 'CONCLUIDO' && (
                         <CheckCircle2 className="w-5 h-5 absolute opacity-0 transition-opacity duration-200 group-hover/node:opacity-100" />
                      )}
                   </div>
@@ -150,80 +128,80 @@ export function TimelineView({ tasks, categories = [] }: TimelineViewProps) {
               </button>
             </div>
 
-            {/* O Card de Conteúdo */}
             <div 
               className={cn(
                 "flex-1 rounded-2xl border bg-black/20 backdrop-blur-sm p-4 md:p-5 transition-all duration-300",
                 "hover:bg-white/[0.02] hover:border-white/20 hover:shadow-xl cursor-pointer",
                 "group-hover:translate-x-1 group-hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)]",
-                task.status === 'done' && "opacity-60 hover:opacity-100 grayscale hover:grayscale-0",
+                task.STATUS === 'CONCLUIDO' && "opacity-60 hover:opacity-100 grayscale hover:grayscale-0",
                 config.borderClass
               )}
               onClick={() => setEditingTask(task)}
             >
               <div className="flex flex-col md:flex-row md:items-start justify-between gap-2">
                 
-                {/* Lado Esquerdo: Info */}
                 <div className="space-y-3 w-full">
-                  
-                  {/* Tags e Data */}
                   <div className="flex flex-wrap items-center gap-2 text-xs">
-                    {task.category && (
-                      <Badge variant="outline" style={{ borderColor: task.category.color, color: task.category.color }} className="bg-transparent font-medium shadow-sm">
-                        {task.category.name}
+                    {task.CATEGORIA && (
+                      <Badge variant="outline" style={{ borderColor: task.CATEGORIA.COR, color: task.CATEGORIA.COR }} className="bg-transparent font-medium shadow-sm">
+                        {task.CATEGORIA.NOME}
                       </Badge>
                     )}
                     
                     <span className={cn(
                         "flex items-center gap-1 font-medium px-2 py-0.5 rounded-full border", 
                         isTaskLate ? "text-brand-rose bg-brand-rose/10 border-brand-rose/20" : 
-                        task.status === 'done' ? "text-muted-foreground border-transparent" :
+                        task.STATUS === 'CONCLUIDO' ? "text-muted-foreground border-transparent" :
                         "text-white/70 bg-white/5 border-white/10"
                     )}>
                       <CalendarIcon className="w-3 h-3" />
-                      {getHumanDate(task.due_date)}
+                      {getHumanDate(task.DATA_VENCIMENTO)}
                     </span>
                     
-                    {task.priority === 'urgent' && task.status !== 'done' && (
+                    {task.PRIORIDADE === 'URGENTE' && task.STATUS !== 'CONCLUIDO' && (
                       <span className="flex items-center gap-1 text-xs text-brand-rose font-bold animate-pulse">
                           <AlertCircle className="w-3 h-3" /> Urgente
                       </span>
                     )}
                   </div>
 
-                  {/* Título e Desc */}
                   <div>
-                    <h3 className={cn(
-                        "text-base md:text-lg font-semibold text-white/90 leading-tight", 
-                        task.status === 'done' && "line-through text-muted-foreground"
-                    )}>
-                      {task.title}
+                    <h3 className={cn("text-base md:text-lg font-semibold text-white/90 leading-tight pr-12", task.STATUS === 'CONCLUIDO' && "line-through text-muted-foreground")}>
+                      {task.TITULO}
                     </h3>
-                    {task.description && (
+                    {task.DESCRICAO && (
                         <p className="text-sm text-muted-foreground line-clamp-2 mt-1.5 leading-relaxed">
-                        {task.description}
+                        {task.DESCRICAO}
                         </p>
                     )}
                   </div>
 
-                  {/* Footer (Mobile Friendly) */}
                   <div className="flex items-center justify-between pt-2 border-t border-white/5">
-                    {task.estimated_minutes ? (
+                    {task.MINUTOS_ESTIMADOS ? (
                         <div className="flex items-center gap-1 text-xs text-muted-foreground font-medium">
                             <Clock className="w-3 h-3 text-brand-cyan" />
-                            {task.estimated_minutes} min
+                            {task.MINUTOS_ESTIMADOS} min
                         </div>
-                    ) : (
-                       <div /> // Spacer
-                    )}
+                    ) : <div />}
 
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity text-brand-violet text-xs flex items-center gap-1 font-medium bg-brand-violet/10 px-2 py-1 rounded-full">
-                        Detalhes <ArrowRight className="w-3 h-3" />
+                    <div className="flex items-center gap-2">
+                        {task.STATUS !== 'CONCLUIDO' && (
+                            <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="opacity-0 group-hover:opacity-100 transition-all h-7 px-3 text-xs text-brand-cyan hover:text-brand-cyan hover:bg-brand-cyan/20 border border-transparent hover:border-brand-cyan/20 rounded-full"
+                                onClick={(e) => { e.stopPropagation(); setZenTask(task); }}
+                            >
+                                <Target className="w-3 h-3 mr-1.5" /> Focar
+                            </Button>
+                        )}
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity text-brand-violet text-xs flex items-center gap-1 font-medium bg-brand-violet/10 px-2 py-1 rounded-full">
+                            Detalhes <ArrowRight className="w-3 h-3" />
+                        </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Menu de Ações (Desktop direita, Mobile topo-direita flutuante) */}
                 <div className="absolute right-4 top-4 md:relative md:right-0 md:top-0" onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -235,7 +213,6 @@ export function TimelineView({ tasks, categories = [] }: TimelineViewProps) {
                             <DropdownMenuItem onClick={() => setEditingTask(task)} className="cursor-pointer">
                                 Editar Tarefa
                             </DropdownMenuItem>
-                            {/* Futuro: Adicionar Excluir aqui */}
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>
@@ -249,8 +226,14 @@ export function TimelineView({ tasks, categories = [] }: TimelineViewProps) {
       <TaskEditDialog 
         open={!!editingTask} 
         onOpenChange={(open) => !open && setEditingTask(null)}
-        task={editingTask}
-        categories={categories}
+        task={editingTask as any} // Cast temporário até o TaskEditDialog ser refatorado
+        categories={categories as any}
+      />
+
+      <ZenMode 
+        isOpen={!!zenTask} 
+        onClose={() => setZenTask(null)} 
+        taskTitle={zenTask?.TITULO}
       />
     </div>
   )

@@ -1,7 +1,7 @@
 'use client'
 
-import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
-import { createPortal } from 'react-dom'; // <--- IMPORTANTE: O Portal
+import { useMemo, useState, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import ReactFlow, { 
   Background, 
   Controls, 
@@ -13,16 +13,17 @@ import ReactFlow, {
   Edge
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import type { Task, Category } from '@/lib/types';
+import type { Tarefa, Categoria } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { TaskEditDialog } from '@/components/dashboard/task-edit-dialog';
 import { Edit, GitBranch, X, MousePointerClick, Trash2 } from 'lucide-react';
 
 // --- 1. Nó Customizado (Visual Neon) ---
 const CustomNode = ({ data }: any) => {
-  const isUrgent = data.priority === 'urgent';
-  const isDone = data.status === 'done';
+  const isUrgent = data.priority === 'URGENTE';
+  const isDone = data.status === 'CONCLUIDO';
 
   return (
     <div 
@@ -58,8 +59,8 @@ const CustomNode = ({ data }: any) => {
 const nodeTypes = { custom: CustomNode };
 
 interface ProjectTreeProps {
-  tasks: Task[]
-  categories: Category[]
+  tasks: Tarefa[]
+  categories: Categoria[]
 }
 
 // Componente do Menu separado para usar no Portal
@@ -69,12 +70,11 @@ const ContextMenu = ({
     top: number, left: number, onEdit: () => void, onAddSubtask: () => void, onClose: () => void 
 }) => {
     return (
-        // Overlay invisível para capturar clique fora e fechar
         <div className="fixed inset-0 z-[9999]" onClick={onClose} onContextMenu={(e) => e.preventDefault()}>
             <div
                 style={{ top, left }}
                 className="absolute w-56 rounded-xl border border-white/10 bg-[#121214]/95 backdrop-blur-xl shadow-2xl p-1.5 flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-100"
-                onClick={(e) => e.stopPropagation()} // Não fecha se clicar dentro do menu
+                onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex justify-between items-center px-2 py-1.5 border-b border-white/5 mb-1">
                     <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Opções da Tarefa</span>
@@ -105,11 +105,11 @@ const ContextMenu = ({
 
 export function ProjectTree({ tasks, categories }: ProjectTreeProps) {
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editingTask, setEditingTask] = useState<Tarefa | null>(null);
   const [parentIdForNewTask, setParentIdForNewTask] = useState<string | null>(null);
   
   const [menu, setMenu] = useState<{ id: string; top: number; left: number } | null>(null);
-  const [mounted, setMounted] = useState(false); // Para o Portal funcionar no client
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -118,13 +118,13 @@ export function ProjectTree({ tasks, categories }: ProjectTreeProps) {
   const { initialNodes, initialEdges } = useMemo(() => {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
-    const catMap = new Map(categories.map(c => [c.id, c]));
+    const catMap = new Map(categories.map(c => [c.KEY_CATEGORIA, c]));
     const siblings: { [key: string]: number } = {};
 
     tasks.forEach((task, index) => {
-      const category = task.category_id ? catMap.get(task.category_id) : null;
-      const color = category?.color || '#8b5cf6';
-      const parentId = task.parent_id || 'root';
+      const category = task.KEY_CATEGORIA ? catMap.get(task.KEY_CATEGORIA) : null;
+      const color = category?.COR || '#8b5cf6';
+      const parentId = task.KEY_TAREFA_PAI || 'root';
       
       if (!siblings[parentId]) siblings[parentId] = 0;
       
@@ -132,27 +132,27 @@ export function ProjectTree({ tasks, categories }: ProjectTreeProps) {
       const y = Math.floor(index / 4) * 180;
 
       nodes.push({
-        id: task.id,
+        id: task.KEY_TAREFA,
         type: 'custom',
         position: { x, y },
         data: { 
-          label: task.title, 
+          label: task.TITULO, 
           color: color, 
-          categoryName: category?.name || 'Geral',
-          priority: task.priority,
-          status: task.status,
-          dueDate: task.due_date ? format(new Date(task.due_date), 'dd/MM') : null,
-          time: task.estimated_minutes
+          categoryName: category?.NOME || 'Geral',
+          priority: task.PRIORIDADE,
+          status: task.STATUS,
+          dueDate: task.DATA_VENCIMENTO ? format(new Date(task.DATA_VENCIMENTO), 'dd MMM', { locale: ptBR }) : null,
+          time: task.MINUTOS_ESTIMADOS
         },
         sourcePosition: Position.Bottom,
         targetPosition: Position.Top,
       });
 
-      if (task.parent_id) {
+      if (task.KEY_TAREFA_PAI) {
         edges.push({
-          id: `e-${task.parent_id}-${task.id}`,
-          source: task.parent_id,
-          target: task.id,
+          id: `e-${task.KEY_TAREFA_PAI}-${task.KEY_TAREFA}`,
+          source: task.KEY_TAREFA_PAI,
+          target: task.KEY_TAREFA,
           animated: true,
           style: { stroke: '#ffffff30', strokeWidth: 1.5 },
           type: 'smoothstep', 
@@ -169,8 +169,7 @@ export function ProjectTree({ tasks, categories }: ProjectTreeProps) {
     (event: React.MouseEvent, node: Node) => {
       event.preventDefault();
       
-      // Cálculos para evitar que o menu saia da tela
-      const MENU_WIDTH = 224; // 56 * 4
+      const MENU_WIDTH = 224; 
       const MENU_HEIGHT = 150;
       
       let x = event.clientX;
@@ -196,7 +195,7 @@ export function ProjectTree({ tasks, categories }: ProjectTreeProps) {
 
   const handleEdit = () => {
       if (!menu) return;
-      const task = tasks.find(t => t.id === menu.id);
+      const task = tasks.find(t => t.KEY_TAREFA === menu.id);
       if (task) {
           setEditingTask(task);
           setParentIdForNewTask(null);
@@ -212,7 +211,7 @@ export function ProjectTree({ tasks, categories }: ProjectTreeProps) {
   };
 
   return (
-    <div className="h-full w-full rounded-2xl overflow-hidden bg-[#09090b] relative group">
+    <div className="h-[600px] w-full rounded-2xl overflow-hidden bg-[#09090b] relative group border border-white/5">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-500/5 via-[#09090b] to-[#09090b] pointer-events-none z-0" />
       
       <ReactFlow
@@ -238,7 +237,6 @@ export function ProjectTree({ tasks, categories }: ProjectTreeProps) {
         />
       </ReactFlow>
       
-      {/* O PORTAL MÁGICO: Renderiza o menu direto no body, fora de qualquer overflow */}
       {mounted && menu && createPortal(
           <ContextMenu 
             top={menu.top} 
@@ -262,8 +260,8 @@ export function ProjectTree({ tasks, categories }: ProjectTreeProps) {
       <TaskEditDialog 
           open={modalOpen} 
           onOpenChange={setModalOpen}
-          task={editingTask}
-          categories={categories}
+          task={editingTask as any}
+          categories={categories as any}
           defaultParentId={parentIdForNewTask}
        />
     </div>

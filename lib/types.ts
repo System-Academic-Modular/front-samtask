@@ -1,141 +1,143 @@
 // ==========================================
-// ENUMS & TYPES BÁSICOS
+// ENUMS & TYPES BÁSICOS (PADRÃO PT-BR)
 // ==========================================
-export type TaskStatus = 'todo' | 'in_progress' | 'done'
-export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent'
-export type PomodoroType = 'work' | 'short_break' | 'long_break'
-export type TeamRole = 'owner' | 'admin' | 'member' // Necessário para o módulo de equipes
+export type StatusTarefa = 'TODO' | 'EM_ANDAMENTO' | 'CONCLUIDO'
+export type PrioridadeTarefa = 'BAIXA' | 'MEDIA' | 'ALTA' | 'URGENTE'
+export type TipoPomodoro = 'TRABALHO' | 'PAUSA_CURTA' | 'PAUSA_LONGA'
 
 // ==========================================
-// ENTIDADES PRINCIPAIS
+// ENTIDADES PRINCIPAIS (SCHEMA DO BANCO)
 // ==========================================
 
-export interface Profile {
-  id: string
-  full_name: string | null
-  avatar_url: string | null
-  daily_goal: number
-  pomodoro_duration: number
-  short_break: number
-  long_break: number
-  created_at: string
-  updated_at: string
+// Perfil adaptado para a nova tabela LOGIN / USUARIOS
+export interface UsuarioProfile {
+  KEY_LOGIN: string
+  NOME: string | null
+  AVATAR_URL: string | null
+  EMAIL?: string
+  // Metas (Se mantidas na nova estrutura)
+  META_DIARIA?: number
+  DURACAO_POMODORO?: number
+  PAUSA_CURTA?: number
+  PAUSA_LONGA?: number
+  DATA_CRIACAO: string
+  DATA_ATUALIZACAO: string
 }
 
-export interface Category {
-  id: string
-  user_id: string
-  name: string
-  color: string
-  icon: string
-  created_at: string
+export interface Categoria {
+  KEY_CATEGORIA: string
+  NOME: string
+  COR: string
+  DATA_CRIACAO: string
+  DATA_ATUALIZACAO: string
+  // Referências públicas
+  KEY_TIME?: string | null
+  KEY_LOGIN: string
 }
 
 export interface Tag {
-  id: string
-  user_id: string
-  name: string
-  color: string
-  created_at: string
+  KEY_TAG: string
+  NOME: string
+  COR: string
+  DATA_CRIACAO: string
+  DATA_ATUALIZACAO: string
+  KEY_LOGIN: string
 }
 
-// Interface Team expandida para suportar a página de equipes
-export interface Team {
-  id: string
-  name: string
-  description: string | null
-  owner_id: string
-  invite_code: string // Fundamental para o sistema de convite
-  created_at: string
-  updated_at: string
+export interface Time {
+  KEY_TIME: string
+  NOME: string
+  DESCRICAO: string | null
+  CODIGO_CONVITE: string
+  DATA_CRIACAO: string
+  DATA_ATUALIZACAO: string
+  KEY_LOGIN: string // O Criador
 }
 
-export interface TeamMember {
-  id: string
-  team_id: string
-  user_id: string
-  role: TeamRole
-  joined_at: string
-  // Opcionais para joins
-  team?: Team 
-  profile?: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
+// Relacionamento Many-to-Many (Usuários <-> Times)
+export interface MembroTime {
+  KEY_TIME: string
+  KEY_LOGIN: string
+  DATA_INTEGRACAO: string
+  SUPER_ADMIN: boolean
+  
+  // Joins (Opcionais para UI)
+  TIME?: Time 
+  PERFIL?: Pick<UsuarioProfile, 'KEY_LOGIN' | 'NOME' | 'AVATAR_URL'> | null
 }
 
-export interface Task {
-  id: string
-  user_id: string
-  category_id: string | null
-  parent_id: string | null
-  title: string
-  description: string | null
-  status: TaskStatus
-  priority: TaskPriority
-  due_date: string | null
-  estimated_minutes: number | null
-  actual_minutes: number
-  is_recurring: boolean
-  recurrence_pattern: string | null
-  position: number
-  team_id?: string | null
-  assignee_id?: string | null
-  completed_at: string | null
-  created_at: string
-  updated_at: string
-  children?: Task[]
+export interface Tarefa {
+  KEY_TAREFA: string
+  TITULO: string
+  DESCRICAO: string | null
+  STATUS: StatusTarefa
+  PRIORIDADE: PrioridadeTarefa
+  DATA_VENCIMENTO: string | null
+  POSICAO: number | null
+  DATA_CRIACAO: string
+  DATA_ATUALIZACAO: string
+  
+  // Chaves Públicas
+  KEY_TIME?: string | null
+  KEY_LOGIN: string
+  KEY_CATEGORIA?: string | null
+  KEY_TAREFA_PAI?: string | null // Para sub-tarefas
+  KEY_RESPONSAVEL?: string | null // Usuário assinalado
 
-  // Joined data (Opcionais)
-  category?: Category | null
-  tags?: Tag[]
-  subtasks?: Task[]
-  team?: Team | null
-  // ADICIONADO: Tipagem para o join do responsável
-  assignee?: {
-    full_name: string | null
-    avatar_url: string | null
+  // Campos extras de negócio (Adaptados)
+  MINUTOS_ESTIMADOS?: number | null
+  MINUTOS_REAIS?: number
+  RECORRENTE?: boolean
+  PADRAO_RECORRENCIA?: string | null
+
+  // Joined data (Retornados pela API/Supabase Joins)
+  CATEGORIA?: Categoria | null
+  TAGS?: Tag[]
+  SUBTAREFAS?: Tarefa[]
+  TIME?: Time | null
+  RESPONSAVEL?: {
+    NOME: string | null
+    AVATAR_URL: string | null
   } | null
 }
 
-export interface TaskTag {
-  task_id: string
-  tag_id: string
+export interface SessaoFoco {
+  KEY_SESSAO_FOCO: string
+  DURACAO_SEGUNDOS: number
+  DATA_CONCLUSAO: string | null
+  DATA_CRIACAO: string
+  DATA_ATUALIZACAO: string
+  
+  KEY_TAREFA?: string | null
+  KEY_LOGIN: string
 }
 
-export interface PomodoroSession {
-  id: string
-  user_id: string
-  task_id: string | null
-  duration_minutes: number
-  type: PomodoroType
-  created_at: string
-  completed_at?: string
-}
-
-export interface EmotionalCheckin {
-  id: string
-  user_id: string
-  mood: number
-  energy: number
-  note: string | null
-  created_at: string
+export interface CheckinEmocional {
+  KEY_CHECKIN: string
+  HUMOR: number
+  ENERGIA: number
+  NOTA: string | null
+  DATA_CRIACAO: string
+  KEY_LOGIN: string
 }
 
 // ==========================================
 // VIEW & FILTER TYPES
 // ==========================================
-export type ViewType = 'list' | 'kanban' | 'calendar'
+export type TipoVisao = 'LISTA' | 'KANBAN' | 'CALENDARIO'
 
-export interface TaskFilters {
-  status?: TaskStatus[]
-  priority?: TaskPriority[]
-  category_id?: string
-  tag_ids?: string[]
-  search?: string
-  due_date_from?: string
-  due_date_to?: string
-  is_today?: boolean
+export interface FiltrosTarefa {
+  STATUS?: StatusTarefa[]
+  PRIORIDADE?: PrioridadeTarefa[]
+  KEY_CATEGORIA?: string
+  KEY_TAGS?: string[]
+  BUSCA?: string
+  DATA_VENCIMENTO_INICIO?: string
+  DATA_VENCIMENTO_FIM?: string
+  APENAS_HOJE?: boolean
 }
 
-export interface TaskSort {
-  field: 'due_date' | 'priority' | 'status' | 'created_at' | 'position'
-  direction: 'asc' | 'desc'
+export interface OrdenacaoTarefa {
+  CAMPO: 'DATA_VENCIMENTO' | 'PRIORIDADE' | 'STATUS' | 'DATA_CRIACAO' | 'POSICAO'
+  DIRECAO: 'asc' | 'desc'
 }
