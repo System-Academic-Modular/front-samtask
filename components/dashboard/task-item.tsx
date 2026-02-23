@@ -15,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { MoreHorizontal, Pencil, Trash2, Clock, Calendar, User } from 'lucide-react'
+import { MoreHorizontal, Pencil, Trash2, Clock, Calendar } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import confetti from 'canvas-confetti'
@@ -26,37 +26,40 @@ interface TaskItemProps {
   showCompleted?: boolean
 }
 
-// Mapeamento atualizado para os novos Enums em Português
+// Mapeamento para os Enums em Inglês do seu Banco
 const priorityColors = {
-  BAIXA: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-  MEDIA: 'bg-brand-cyan/10 text-brand-cyan border-brand-cyan/20',
-  ALTA: 'bg-brand-amber/10 text-brand-amber border-brand-amber/20',
-  URGENTE: 'bg-red-500/10 text-red-500 border-red-500/20 animate-pulse',
+  low: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+  medium: 'bg-brand-cyan/10 text-brand-cyan border-brand-cyan/20',
+  high: 'bg-brand-amber/10 text-brand-amber border-brand-amber/20',
+  urgent: 'bg-red-500/10 text-red-500 border-red-500/20 animate-pulse',
 }
 
 const priorityLabels = {
-  BAIXA: 'Baixa',
-  MEDIA: 'Média',
-  ALTA: 'Alta',
-  URGENTE: 'Urgente',
+  low: 'Baixa',
+  medium: 'Média',
+  high: 'Alta',
+  urgent: 'Urgente',
 }
 
 export function TaskItem({ task, onEdit, showCompleted }: TaskItemProps) {
   const [isPending, startTransition] = useTransition()
-  const isCompleted = task.STATUS === 'CONCLUIDO'
+  
+  // Ajustado para 'done' (valor real no banco)
+  const isCompleted = task.status === 'done'
 
   function handleToggleComplete() {
     startTransition(async () => {
-      const newStatus = isCompleted ? 'TODO' : 'CONCLUIDO'
-      // Atenção: Sua action updateTask no backend precisará ser ajustada para o novo padrão
-      const result = await updateTask(task.KEY_TAREFA, { STATUS: newStatus })
+      const newStatus = isCompleted ? 'todo' : 'done'
+      
+      // Enviando 'id' e 'status' em inglês para a action
+      const result = await updateTask(task.id, { status: newStatus })
       
       if (result.error) {
         toast.error('Erro ao atualizar tarefa')
         return
       }
 
-      if (newStatus === 'CONCLUIDO') {
+      if (newStatus === 'done') {
         confetti({
           particleCount: 40,
           spread: 70,
@@ -72,7 +75,7 @@ export function TaskItem({ task, onEdit, showCompleted }: TaskItemProps) {
 
   function handleDelete() {
     startTransition(async () => {
-      const result = await deleteTask(task.KEY_TAREFA)
+      const result = await deleteTask(task.id)
       if (result.error) {
         toast.error('Erro ao excluir tarefa')
         return
@@ -81,10 +84,10 @@ export function TaskItem({ task, onEdit, showCompleted }: TaskItemProps) {
     })
   }
 
-  const dueDate = task.DATA_VENCIMENTO ? new Date(task.DATA_VENCIMENTO) : null
+  // Ajustado para 'due_date'
+  const dueDate = task.due_date ? new Date(task.due_date) : null
   const isOverdue = dueDate && dueDate < new Date() && !isCompleted
 
-  // Helper para pegar as iniciais do nome do responsável
   const getInitials = (name: string | null) => {
     if (!name) return '?'
     return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2)
@@ -96,7 +99,6 @@ export function TaskItem({ task, onEdit, showCompleted }: TaskItemProps) {
       isPending && 'opacity-50 pointer-events-none scale-[0.98]',
       isCompleted && 'bg-white/[0.02] grayscale-[0.5] hover:grayscale-0'
     )}>
-      {/* Indicador lateral de status */}
       <div className={cn(
         "absolute left-0 top-0 bottom-0 w-1 transition-all",
         isCompleted ? "bg-brand-emerald" : "bg-transparent group-hover:bg-brand-violet/40"
@@ -122,45 +124,41 @@ export function TaskItem({ task, onEdit, showCompleted }: TaskItemProps) {
                   'font-semibold text-base transition-all duration-300',
                   isCompleted ? 'text-muted-foreground line-through' : 'text-white group-hover:text-brand-cyan transition-colors'
                 )}>
-                  {task.TITULO}
+                  {task.title}
                 </h3>
                 
-                {task.DESCRICAO && (
+                {task.description && (
                   <p className={cn(
                     'text-sm text-muted-foreground line-clamp-2 leading-relaxed transition-opacity',
                     isCompleted && 'opacity-50'
                   )}>
-                    {task.DESCRICAO}
+                    {task.description}
                   </p>
                 )}
 
                 <div className="flex flex-wrap items-center gap-3 mt-4">
-                  {/* Badge de Prioridade */}
-                  <Badge variant="outline" className={cn("text-[10px] font-bold uppercase tracking-wider h-5", priorityColors[task.PRIORIDADE])}>
-                    {priorityLabels[task.PRIORIDADE]}
+                  <Badge variant="outline" className={cn("text-[10px] font-bold uppercase tracking-wider h-5", priorityColors[task.priority])}>
+                    {priorityLabels[task.priority]}
                   </Badge>
 
-                  {/* Badge de Categoria */}
-                  {task.CATEGORIA && (
+                  {task.category && (
                     <Badge 
                       variant="outline"
                       className="text-[10px] h-5 bg-black/20"
-                      style={{ borderColor: `${task.CATEGORIA.COR}40`, color: task.CATEGORIA.COR }}
+                      style={{ borderColor: `${task.category.color}40`, color: task.category.color }}
                     >
-                      <div className="w-1.5 h-1.5 rounded-full mr-1.5" style={{ backgroundColor: task.CATEGORIA.COR }} />
-                      {task.CATEGORIA.NOME}
+                      <div className="w-1.5 h-1.5 rounded-full mr-1.5" style={{ backgroundColor: task.category.color }} />
+                      {task.category.name}
                     </Badge>
                   )}
 
-                  {/* Estimativa de Tempo */}
-                  {task.MINUTOS_ESTIMADOS && (
+                  {task.estimated_minutes && (
                     <span className="text-[11px] text-muted-foreground flex items-center gap-1.5 bg-white/5 px-2 py-0.5 rounded-full border border-white/5">
                       <Clock className="w-3 h-3 text-brand-cyan" />
-                      {task.MINUTOS_ESTIMADOS}m
+                      {task.estimated_minutes}m
                     </span>
                   )}
 
-                  {/* Data de Entrega */}
                   {dueDate && (
                     <span className={cn(
                       'text-[11px] flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-white/5',
@@ -171,16 +169,15 @@ export function TaskItem({ task, onEdit, showCompleted }: TaskItemProps) {
                     </span>
                   )}
 
-                  {/* AVATAR DO RESPONSÁVEL (Assignee) */}
-                  {task.RESPONSAVEL && (
-                    <div className="flex items-center gap-2 ml-auto group/assignee cursor-pointer" title={`Responsável: ${task.RESPONSAVEL.NOME}`}>
+                  {task.assignee && (
+                    <div className="flex items-center gap-2 ml-auto group/assignee cursor-pointer" title={`Responsável: ${task.assignee.full_name}`}>
                       <span className="text-[10px] text-muted-foreground font-medium hidden sm:inline-block opacity-0 group-hover:opacity-100 transition-opacity">
-                        {task.RESPONSAVEL.NOME?.split(' ')[0]}
+                        {task.assignee.full_name?.split(' ')[0]}
                       </span>
                       <Avatar className="h-6 w-6 border border-white/10 ring-2 ring-transparent group-hover/assignee:ring-brand-violet/30 transition-all shadow-sm">
-                        <AvatarImage src={task.RESPONSAVEL.AVATAR_URL || ''} />
+                        <AvatarImage src={task.assignee.avatar_url || ''} />
                         <AvatarFallback className="text-[9px] bg-brand-violet/20 text-brand-violet font-bold">
-                          {getInitials(task.RESPONSAVEL.NOME)}
+                          {getInitials(task.assignee.full_name)}
                         </AvatarFallback>
                       </Avatar>
                     </div>
@@ -188,7 +185,6 @@ export function TaskItem({ task, onEdit, showCompleted }: TaskItemProps) {
                 </div>
               </div>
 
-              {/* Botões de Ação */}
               <div className="flex flex-col items-end gap-2 relative z-10">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

@@ -1,19 +1,21 @@
 import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
 import { ReportsView } from '@/components/dashboard/reports-view'
-import type { Category } from '@/lib/types'
+import type { Tarefa, Categoria } from '@/lib/types'
 
 export default async function ReportsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) return null
+  if (!user) redirect('/auth/login')
 
+  // Busca Tarefas (Colunas em Inglês conforme seu banco)
   const { data: tasks } = await supabase
     .from('tasks')
     .select('*')
     .eq('user_id', user.id)
-    .is('parent_id', null)
 
+  // Busca Sessões (últimos 7 dias)
   const sevenDaysAgo = new Date()
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
@@ -24,6 +26,7 @@ export default async function ReportsPage() {
     .gte('completed_at', sevenDaysAgo.toISOString())
     .order('completed_at', { ascending: true })
 
+  // Busca Categorias
   const { data: categories } = await supabase
     .from('categories')
     .select('*')
@@ -31,9 +34,9 @@ export default async function ReportsPage() {
 
   return (
     <ReportsView
-      tasks={tasks || []}
+      tasks={(tasks || []) as Tarefa[]}
       sessions={sessions || []}
-      categories={(categories || []) as Category[]}
+      categories={(categories || []) as Categoria[]}
     />
   )
 }

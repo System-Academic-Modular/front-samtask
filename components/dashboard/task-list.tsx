@@ -7,15 +7,15 @@ import { TaskEditDialog } from './task-edit-dialog'
 import { ListTodo } from 'lucide-react'
 
 interface TaskListProps {
-  tasks: Tarefa[] // Tipagem atualizada
-  categories: Categoria[] // Tipagem atualizada
+  tasks: Tarefa[]
+  categories: Categoria[]
   showCompleted?: boolean
 }
 
 export function TaskList({ tasks, categories, showCompleted }: TaskListProps) {
   const [editingTask, setEditingTask] = useState<Tarefa | null>(null)
 
-  // Melhoria: Empty State (Estado Vazio) elegante
+  // Empty State elegante
   if (tasks.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-4 border border-dashed border-white/10 rounded-3xl bg-white/5 text-center backdrop-blur-sm animate-in fade-in duration-500">
@@ -37,12 +37,12 @@ export function TaskList({ tasks, categories, showCompleted }: TaskListProps) {
       <div className="space-y-3">
         {tasks.map((task, index) => (
           <div 
-            key={task.KEY_TAREFA}
+            key={task.id} // Alterado de KEY_TAREFA para id (coluna real do banco)
             className="animate-in slide-in-from-bottom-4 fade-in duration-500 fill-mode-both"
-            style={{ animationDelay: `${index * 50}ms` }} // Efeito de entrada em cascata
+            style={{ animationDelay: `${index * 50}ms` }}
           >
             <TaskItem
-              task={task as any} // Cast temporário até atualizarmos o TaskItem
+              task={task} // Removido o 'as any' pois agora os tipos batem
               onEdit={() => setEditingTask(task)}
               showCompleted={showCompleted}
             />
@@ -51,8 +51,8 @@ export function TaskList({ tasks, categories, showCompleted }: TaskListProps) {
       </div>
 
       <TaskEditDialog
-        task={editingTask as any} // Cast temporário até atualizarmos o modal
-        categories={categories as any}
+        task={editingTask} // Removido o 'as any'
+        categories={categories}
         open={!!editingTask}
         onOpenChange={(open) => !open && setEditingTask(null)}
       />

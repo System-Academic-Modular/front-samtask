@@ -8,43 +8,41 @@ export default async function TeamsPage() {
 
   if (!user) redirect('/auth/login')
 
-  // A buscar na nova tabela LOGIN_TIME e a fazer join com TIMES
-  const { data: membros, error: membersError } = await supabase
-    .from('LOGIN_TIME')
+  // Ajustado para as tabelas reais: team_members e teams
+  const { data: members, error: membersError } = await supabase
+    .from('team_members')
     .select(`
-      SUPER_ADMIN,
-      TIME:TIMES (
-        KEY_TIME,
-        NOME,
-        DESCRICAO,
-        KEY_LOGIN,
-        CODIGO_CONVITE
+      role,
+      team:teams (
+        id,
+        name,
+        description,
+        owner_id,
+        invite_code
       )
     `)
-    .eq('KEY_LOGIN', user.id)
+    .eq('user_id', user.id)
 
-  const minhasEquipes = (membros ?? [])
-    .map((membro: any) => {
-      // Como o Supabase devolve as relações, tratamos caso seja array ou objeto
-      const equipaData = Array.isArray(membro.TIME) ? membro.TIME[0] : membro.TIME
+  const minhasEquipes = (members ?? [])
+    .map((member: any) => {
+      const equipaData = member.team
       if (!equipaData) return null
       
       return {
         ...equipaData,
-        SUPER_ADMIN: membro.SUPER_ADMIN,
+        role: member.role, // 'owner', 'admin' ou 'member'
       } as EquipaComPermissao
     })
     .filter((equipa): equipa is EquipaComPermissao => equipa !== null)
 
-  // Ordenar: Super Admins primeiro, depois ordem alfabética
+  // Ordenação: Líderes (owner) primeiro, depois Admins, depois Membros
+  const roleOrder = { owner: 0, admin: 1, member: 2 }
   minhasEquipes.sort((a, b) => {
-    if (a.SUPER_ADMIN && !b.SUPER_ADMIN) return -1
-    if (!a.SUPER_ADMIN && b.SUPER_ADMIN) return 1
-    return a.NOME.localeCompare(b.NOME)
+    return roleOrder[a.role] - roleOrder[b.role] || a.name.localeCompare(b.name)
   })
 
   const total = minhasEquipes.length
-  const liderando = minhasEquipes.filter((equipa) => equipa.SUPER_ADMIN).length
+  const liderando = minhasEquipes.filter((equipa) => equipa.role === 'owner').length
   const participando = total - liderando
 
   return (

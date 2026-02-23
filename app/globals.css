@@ -4,71 +4,69 @@
 
 @layer base {
   :root {
-    /* Tema Padrão (Dark Focus por natureza) */
-    --background: 222 47% 6%; /* Slate-950 profundo */
+    /* MODO CLARO (Default se não houver .dark) */
+    --background: 0 0% 100%;
+    --foreground: 222 47% 6%;
+    --card: 0 0% 98%;
+    --card-foreground: 222 47% 6%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 6%;
+    --primary: 262 83% 58%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222 47% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222 47% 11.2%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 262 83% 58%;
+    --radius: 0.75rem;
+
+    /* Variável Dinâmica de Cor Neon (Será alterada pelo DynamicStyleProvider) */
+    --brand-violet: #8b5cf6; 
+  }
+
+  .dark {
+    /* MODO ESCURO (O seu Slate-950 profundo) */
+    --background: 222 47% 6%;
     --foreground: 210 40% 98%;
-
-    --card: 222 47% 10%; /* Um pouco mais claro que o fundo */
+    --card: 222 47% 10%;
     --card-foreground: 210 40% 98%;
-
     --popover: 222 47% 10%;
     --popover-foreground: 210 40% 98%;
-
-    --primary: 262 83% 58%; /* Violeta Neon Principal */
+    --primary: 262 83% 58%;
     --primary-foreground: 210 40% 98%;
-
     --secondary: 217 33% 17%;
     --secondary-foreground: 210 40% 98%;
-
     --muted: 217 33% 17%;
     --muted-foreground: 215 20% 65%;
-
     --accent: 217 33% 17%;
     --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62% 30%;
-    --destructive-foreground: 210 40% 98%;
-
     --border: 217 33% 20%;
     --input: 217 33% 20%;
     --ring: 262 83% 58%;
-
-    --radius: 0.75rem;
-    
-    /* Cores Semânticas (Neon) */
-    --status-todo: 215 20% 65%;
-    --status-progress: 199 89% 48%; /* Azul Sky */
-    --status-done: 160 84% 39%;     /* Esmeralda */
-    --status-urgent: 350 89% 60%;   /* Rose */
   }
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground transition-colors duration-300; }
 }
 
-/* Utilitários de Alta Performance Visual */
 @layer utilities {
   .glass-panel {
     @apply bg-card/60 backdrop-blur-md border border-white/5;
   }
   
-  .neon-border-violet {
-    box-shadow: 0 0 5px theme('colors.violet.500/20'), 0 0 15px theme('colors.violet.500/10');
+  /* Usando a variável dinâmica para o brilho neon */
+  .neon-border {
+    border-color: var(--brand-violet);
+    box-shadow: 0 0 5px var(--brand-violet), 0 0 15px rgba(0,0,0,0.1);
   }
-  
-  /* Timeline Line Gradient */
-  .timeline-line-gradient {
-    background: linear-gradient(180deg, 
-      rgba(99, 102, 241, 0) 0%, 
-      rgba(99, 102, 241, 0.5) 15%, 
-      rgba(99, 102, 241, 0.5) 85%, 
-      rgba(99, 102, 241, 0) 100%
-    );
-  }
+
+  .bg-brand-violet { background-color: var(--brand-violet); }
+  .text-brand-violet { color: var(--brand-violet); }
+  .border-brand-violet { border-color: var(--brand-violet); }
 }
