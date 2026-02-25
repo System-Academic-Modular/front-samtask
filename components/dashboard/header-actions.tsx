@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Bell, Search, UploadCloud, Target, CheckCircle2, Flame, Users, Clock, BookHeart } from 'lucide-react'
+import { Bell, Search, UploadCloud, Target, CheckCircle2, Flame, Users, BookHeart } from 'lucide-react'
 import { TaskEditDialog } from '@/components/dashboard/task-edit-dialog'
 import { ImportTasksDialog } from '@/components/dashboard/import-tasks-dialog'
 import { ZenMode } from '@/components/dashboard/zen-mode'
@@ -15,7 +15,6 @@ import {
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
-// Dados simulados para você ver o design em ação!
 const mockNotifications = [
   {
     id: 1,
@@ -62,8 +61,6 @@ const mockNotifications = [
 export function HeaderActions({ categories }: { categories: Category[] }) {
   const [open, setOpen] = useState(false)
   const [zenModeOpen, setZenModeOpen] = useState(false)
-  
-  // Estado para controlar as notificações na UI
   const [notifications, setNotifications] = useState(mockNotifications)
 
   const unreadCount = notifications.filter(n => n.unread).length
@@ -77,34 +74,43 @@ export function HeaderActions({ categories }: { categories: Category[] }) {
   }
 
   return (
-    <div className="flex items-center gap-2 md:gap-4">
+    <div className="flex items-center gap-1.5 md:gap-4">
       
-      {/* Botão Modo Zen */}
+      {/* Botão Modo Zen - Corrigido para Mobile */}
       <Button 
         variant="outline" 
         size="sm" 
         onClick={() => setZenModeOpen(true)}
-        className="hidden md:flex border-brand-violet/30 bg-brand-violet/10 hover:bg-brand-violet/20 text-brand-violet gap-2 shadow-[0_0_15px_rgba(139,92,246,0.15)]"
+        className={cn(
+          "border-brand-violet/30 bg-brand-violet/10 text-brand-violet gap-2 transition-all",
+          "hover:bg-brand-violet/20 hover:scale-105 active:scale-95 shadow-neon-small",
+          "px-2 md:px-3" // Menor no mobile
+        )}
       >
         <Target className="w-4 h-4" />
-        Modo Zen
+        <span className="hidden sm:inline">Modo Zen</span> {/* Esconde o texto em telas muito pequenas */}
       </Button>
 
-      {/* Botão de Importação */}
+      {/* Botão de Importação - Também habilitado para Mobile */}
       <ImportTasksDialog 
         categories={categories}
         trigger={
-            <Button variant="outline" size="icon" className="hidden md:flex border-white/10 hover:bg-white/5 hover:border-brand-cyan/50 hover:text-brand-cyan transition-all" title="Importar da Reunião">
+            <Button 
+              variant="outline" 
+              size="icon" 
+              className="border-white/10 hover:bg-white/5 hover:border-brand-cyan/50 hover:text-brand-cyan transition-all" 
+              title="Importar da Reunião"
+            >
                 <UploadCloud className="w-4 h-4" />
             </Button>
         }
       />
 
-      <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-white">
+      <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-white hidden xs:flex">
         <Search className="w-5 h-5" />
       </Button>
       
-      {/* --- CENTRAL DE NOTIFICAÇÕES --- */}
+      {/* CENTRAL DE NOTIFICAÇÕES */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-white relative">
@@ -114,9 +120,8 @@ export function HeaderActions({ categories }: { categories: Category[] }) {
             )}
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-80 md:w-96 bg-[#121214]/95 backdrop-blur-xl border-white/10 p-0 shadow-2xl mt-2 z-[60]">
+        <DropdownMenuContent align="end" className="w-[calc(100vw-32px)] sm:w-96 bg-[#121214]/95 backdrop-blur-xl border-white/10 p-0 shadow-2xl mt-2 z-[60]">
           
-          {/* Header do Dropdown */}
           <div className="flex items-center justify-between p-4 border-b border-white/5 bg-white/[0.02]">
             <h3 className="font-semibold text-white">Notificações</h3>
             {unreadCount > 0 && (
@@ -126,12 +131,11 @@ export function HeaderActions({ categories }: { categories: Category[] }) {
                 onClick={markAllAsRead} 
                 className="h-auto p-0 text-xs text-brand-violet hover:text-brand-violet/80 hover:bg-transparent"
               >
-                Marcar todas como lidas
+                Limpar
               </Button>
             )}
           </div>
           
-          {/* Lista Rolável */}
           <ScrollArea className="h-[350px]">
             {notifications.length > 0 ? (
               <div className="flex flex-col">
@@ -144,7 +148,6 @@ export function HeaderActions({ categories }: { categories: Category[] }) {
                     )}
                     onClick={() => markAsRead(notification.id)}
                   >
-                    {/* Linha indicadora de não lido (Esquerda) */}
                     {notification.unread && (
                         <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-brand-violet" />
                     )}
@@ -164,10 +167,6 @@ export function HeaderActions({ categories }: { categories: Category[] }) {
                         {notification.description}
                       </p>
                     </div>
-
-                    {notification.unread && (
-                      <div className="w-2 h-2 rounded-full bg-brand-violet shrink-0 mt-1.5 shadow-neon-violet" />
-                    )}
                   </div>
                 ))}
               </div>
@@ -175,16 +174,12 @@ export function HeaderActions({ categories }: { categories: Category[] }) {
               <div className="p-8 text-center text-muted-foreground flex flex-col items-center justify-center h-full">
                 <CheckCircle2 className="w-10 h-10 mb-3 opacity-20" />
                 <p className="text-sm font-medium text-white/70">Tudo limpo!</p>
-                <p className="text-xs mt-1">Você não tem novas notificações.</p>
               </div>
             )}
           </ScrollArea>
           
-          {/* Footer do Dropdown */}
-          <div className="p-2 border-t border-white/5 bg-black/20">
-            <Button variant="ghost" className="w-full text-xs text-muted-foreground hover:text-white h-8">
-              Ver histórico completo
-            </Button>
+          <div className="p-2 border-t border-white/5 bg-black/20 text-center">
+            <p className="text-[10px] text-muted-foreground py-1 font-bold tracking-widest uppercase">Protocolo Arthur OS</p>
           </div>
 
         </DropdownMenuContent>
