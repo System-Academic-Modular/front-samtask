@@ -9,8 +9,11 @@ import {
   Kanban,
   MoreHorizontal,
   Pencil,
+  Play,
   Target,
   Trash2,
+  RefreshCw,
+  Zap
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { deleteTask, updateTask } from '@/lib/actions/tasks'
@@ -37,14 +40,12 @@ interface KanbanViewProps {
   teamMembers?: TeamMember[]
 }
 
-const columns: { id: TaskStatus; title: string; className: string }[] = [
-  { id: 'todo', title: 'A Fazer', className: 'border-slate-500/20 bg-slate-500/10' },
-  {
-    id: 'in_progress',
-    title: 'Em Foco',
-    className: 'border-brand-violet/25 bg-brand-violet/10',
-  },
-  { id: 'done', title: 'Concluídas', className: 'border-emerald-500/25 bg-emerald-500/10' },
+// 1. Nova Coluna 'review' inserida no fluxo
+const columns: { id: TaskStatus; title: string; className: string; icon: React.ReactNode }[] = [
+  { id: 'todo', title: 'A Fazer', className: 'border-slate-500/20 bg-slate-500/5', icon: <Target className="w-4 h-4 text-slate-400" /> },
+  { id: 'in_progress', title: 'Em Foco', className: 'border-brand-violet/30 bg-brand-violet/10', icon: <Zap className="w-4 h-4 text-brand-violet animate-pulse" /> },
+  { id: 'review', title: 'Em Revisão', className: 'border-emerald-500/30 bg-emerald-500/5', icon: <RefreshCw className="w-4 h-4 text-emerald-400" /> },
+  { id: 'done', title: 'Concluídas', className: 'border-white/10 bg-white/5 opacity-80', icon: <Target className="w-4 h-4 text-white/50" /> },
 ]
 
 const priorityOrder: Record<Task['priority'], number> = {
@@ -55,7 +56,7 @@ const priorityOrder: Record<Task['priority'], number> = {
 }
 
 function priorityDot(priority: Task['priority']) {
-  if (priority === 'urgent') return 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.7)]'
+  if (priority === 'urgent') return 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.7)] animate-pulse'
   if (priority === 'high') return 'bg-orange-400'
   if (priority === 'medium') return 'bg-amber-300'
   return 'bg-slate-400'
@@ -78,14 +79,21 @@ export function KanbanView({
   )
 
   const tasksByColumn = useMemo(() => {
-    const groups = {
-      todo: [] as Task[],
-      in_progress: [] as Task[],
-      done: [] as Task[],
+    // 2. Estado expandido para abraçar a nova tipagem
+    const groups: Record<TaskStatus, Task[]> = {
+      todo: [],
+      in_progress: [],
+      review: [],
+      done: [],
     }
 
+    // Inicialização segura caso venha algum status alienígena do banco
     for (const task of tasks) {
-      groups[task.status].push(task)
+      if (groups[task.status]) {
+         groups[task.status].push(task)
+      } else {
+         groups.todo.push(task) // Fallback para tarefas órfãs
+      }
     }
 
     for (const columnKey of Object.keys(groups) as TaskStatus[]) {
@@ -114,11 +122,13 @@ export function KanbanView({
           particleCount: 55,
           spread: 60,
           origin: { y: 0.8 },
-          colors: ['#10b981', '#38bdf8', '#4f46e5'],
+          colors: [draggedTask.category?.color || '#8b5cf6', '#38bdf8', '#4f46e5'],
         })
-        toast.success('Tarefa concluída! Revisões foram programadas automaticamente.')
+        toast.success('Missão concluída! Módulo Neural fixado.')
+      } else if (newStatus === 'review') {
+        toast.success('Modo de Retenção Espaçada ativado.')
       } else {
-        toast.success('Tarefa movida.')
+        toast.success('Tarefa re-alocada.')
       }
       setDraggedTask(null)
     })
@@ -131,39 +141,60 @@ export function KanbanView({
         toast.error('Erro ao excluir tarefa', { description: result.error })
         return
       }
-      toast.success('Tarefa excluída.')
+      toast.success('Missão abortada e excluída.')
     })
   }
 
+  // 3. O Componente Visual da Bateria de Carga
+  const renderCognitiveBattery = (load: number) => (
+    <div className="flex items-center gap-0.5" title={`Carga Mental: Nível ${load}`}>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div 
+          key={i} 
+          className={cn(
+            "w-1.5 h-2 rounded-[1px]",
+            i < load ? "bg-sky-400 shadow-[0_0_5px_rgba(56,189,248,0.5)]" : "bg-white/10"
+          )}
+        />
+      ))}
+    </div>
+  )
+
   return (
-    <div className="flex h-full min-h-0 flex-col space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div className="flex h-full min-h-0 flex-col space-y-6 relative">
+      {/* Glow de Fundo do Dashboard */}
+      <div className="absolute top-0 left-1/4 w-[50vw] h-[50vw] bg-brand-violet/5 blur-[120px] rounded-full pointer-events-none -z-10" />
+
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between relative z-10">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
+          <h1 className="flex items-center gap-2 text-2xl font-black uppercase tracking-tighter text-white">
             <Kanban className="h-6 w-6 text-brand-violet" />
-            Fluxo Kanban
+            Fluxo Tático
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground mt-1">
             {selectedTeamId
-              ? 'Contexto de equipe ativo para distribuição de trabalho.'
-              : 'Arraste os cards para manter seu fluxo visual em dia.'}
+              ? 'Protocolo de Equipe Sincronizado.'
+              : 'Arraste os módulos para manter o pipeline de execução limpo.'}
           </p>
         </div>
       </div>
 
-      <QuickAddTask
-        categories={categories}
-        selectedTeamId={selectedTeamId}
-        teamMembers={teamMembers}
-      />
+      <div className="relative z-10">
+         <QuickAddTask
+           categories={categories}
+           selectedTeamId={selectedTeamId}
+           teamMembers={teamMembers}
+         />
+      </div>
 
-      <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-white/10">
+      <div className="flex min-h-0 flex-1 gap-5 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent custom-scrollbar relative z-10">
         {columns.map((column) => (
           <div
             key={column.id}
             className={cn(
-              'flex min-h-[520px] w-[86vw] shrink-0 snap-center flex-col rounded-2xl border p-4 backdrop-blur-sm md:w-auto md:flex-1',
+              'flex min-h-[520px] w-[320px] shrink-0 snap-center flex-col rounded-[24px] border p-4 backdrop-blur-md transition-colors',
               column.className,
+              draggedTask && draggedTask.status !== column.id && "border-dashed border-white/20"
             )}
             onDragOver={(event) => {
               event.preventDefault()
@@ -174,27 +205,22 @@ export function KanbanView({
               handleDrop(column.id)
             }}
           >
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="font-semibold text-white">{column.title}</h3>
-              <Badge variant="outline" className="border-white/10 bg-black/20">
+            <div className="mb-5 flex items-center justify-between border-b border-white/5 pb-3">
+              <h3 className="font-black text-sm uppercase tracking-widest flex items-center gap-2 text-white/90">
+                {column.icon} {column.title}
+              </h3>
+              <Badge variant="outline" className="border-white/10 bg-black/40 text-[10px] font-mono shadow-inner">
                 {tasksByColumn[column.id].length}
               </Badge>
             </div>
 
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white/10">
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-2 custom-scrollbar">
               {tasksByColumn[column.id].map((task) => {
                 const assignee = task.assignee_id ? memberByUserId.get(task.assignee_id) : null
-                const assigneeName =
-                  assignee?.profile?.full_name || task.assignee?.full_name || 'Sem responsável'
-                const initials = assigneeName
-                  .split(' ')
-                  .map((chunk) => chunk.charAt(0))
-                  .join('')
-                  .slice(0, 2)
-                  .toUpperCase()
-
-                const isOverdue =
-                  !!task.due_date && new Date(task.due_date).getTime() < Date.now() && task.status !== 'done'
+                const assigneeName = assignee?.profile?.full_name || task.assignee?.full_name || 'Sem responsável'
+                const initials = assigneeName.split(' ').map((c) => c.charAt(0)).join('').slice(0, 2).toUpperCase()
+                const isOverdue = !!task.due_date && new Date(task.due_date).getTime() < Date.now() && task.status !== 'done'
+                const isReviewTask = task.status === 'review' || task.title.toLowerCase().includes('revisão')
 
                 return (
                   <article
@@ -205,111 +231,100 @@ export function KanbanView({
                       event.dataTransfer.effectAllowed = 'move'
                     }}
                     className={cn(
-                      'group rounded-xl border border-white/10 bg-[#101521]/80 p-4 shadow-lg transition-all hover:-translate-y-0.5 hover:border-white/20',
-                      isPending && draggedTask?.id === task.id && 'scale-[0.98] opacity-50',
+                      'group relative rounded-2xl border bg-black/40 p-4 shadow-xl transition-all duration-300 hover:-translate-y-1 overflow-hidden cursor-grab active:cursor-grabbing',
+                      isReviewTask 
+                        ? 'border-emerald-500/30 hover:border-emerald-500/60 hover:shadow-[0_5px_20px_rgba(16,185,129,0.15)] bg-emerald-500/[0.02]' 
+                        : 'border-white/10 hover:border-white/30 hover:shadow-[0_5px_20px_rgba(139,92,246,0.1)]',
+                      isPending && draggedTask?.id === task.id && 'scale-95 opacity-40',
+                      task.status === 'done' && 'grayscale-[0.5] opacity-60 hover:grayscale-0 hover:opacity-100'
                     )}
+                    style={{ '--hover-glow': task.category?.color || 'var(--brand-violet)' } as React.CSSProperties}
                   >
-                    <div className="mb-2 flex items-start justify-between gap-2">
+                    {/* Efeito Sidebar Hover Dynamic Color */}
+                    <div className="absolute left-0 top-0 bottom-0 w-1 transition-all duration-500 bg-transparent group-hover:bg-[var(--hover-glow)]" />
+
+                    <div className="mb-3 flex items-start justify-between gap-2 pl-1">
                       {task.category ? (
-                        <span
-                          className="text-[10px] font-semibold uppercase tracking-widest"
+                        <span 
+                          className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest bg-black/40 px-2 py-0.5 rounded-full border border-white/5" 
                           style={{ color: task.category.color }}
                         >
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: task.category.color }} />
                           {task.category.name}
                         </span>
                       ) : (
-                        <span className="text-[10px] text-muted-foreground">Sem categoria</span>
+                        <span className="text-[9px] uppercase tracking-widest text-muted-foreground bg-white/5 px-2 py-0.5 rounded-full">Sistema</span>
                       )}
 
-                      <div className="flex items-center rounded-md border border-white/10 bg-black/40 opacity-100 md:opacity-0 md:group-hover:opacity-100">
+                      <div className="flex items-center gap-1 opacity-0 transition-opacity md:group-hover:opacity-100">
                         {task.status !== 'done' && (
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 rounded-none border-r border-white/10 text-sky-300 hover:bg-sky-500/10 hover:text-sky-200"
+                            className="h-6 w-6 rounded-full text-brand-violet hover:bg-brand-violet/20 hover:text-white"
                             onClick={(event) => {
                               event.stopPropagation()
                               setZenTask(task)
                             }}
                           >
-                            <Target className="h-3.5 w-3.5" />
+                            <Play className="h-3 w-3 fill-current ml-0.5" />
                           </Button>
                         )}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 rounded-none text-muted-foreground hover:bg-white/10 hover:text-white"
-                            >
-                              <MoreHorizontal className="h-3.5 w-3.5" />
+                            <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full text-muted-foreground hover:bg-white/10 hover:text-white">
+                              <MoreHorizontal className="h-3 w-3" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="border-white/10 bg-[#141a25]">
-                            <DropdownMenuItem onClick={() => setEditingTask(task)}>
-                              <Pencil className="mr-2 h-4 w-4" />
-                              Editar
+                          <DropdownMenuContent align="end" className="border-white/10 bg-[#0c0c0e] shadow-2xl">
+                            <DropdownMenuItem onClick={() => setEditingTask(task)} className="focus:bg-white/10 cursor-pointer">
+                              <Pencil className="mr-2 h-4 w-4 text-brand-cyan" /> Editar Módulo
                             </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => onDeleteTask(task.id)}
-                              className="text-rose-300 focus:bg-rose-500/10 focus:text-rose-200"
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Excluir
+                            <DropdownMenuSeparator className="bg-white/5" />
+                            <DropdownMenuItem onClick={() => onDeleteTask(task.id)} className="text-red-400 focus:bg-red-500/10 focus:text-red-300 cursor-pointer">
+                              <Trash2 className="mr-2 h-4 w-4" /> Abortar (Excluir)
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
                     </div>
 
-                    <h4
-                      className={cn(
-                        'line-clamp-2 pr-4 text-sm font-semibold text-white',
-                        task.status === 'done' && 'text-muted-foreground line-through',
-                      )}
-                    >
+                    <h4 className={cn(
+                      'pl-1 line-clamp-2 pr-2 text-sm font-bold text-white/90 group-hover:text-white transition-colors',
+                      task.status === 'done' && 'line-through text-white/40'
+                    )}>
                       {task.title}
                     </h4>
 
-                    <div className="mt-3 flex items-center gap-2">
-                      <span className="inline-flex items-center gap-1 rounded-full border border-sky-400/20 bg-sky-500/10 px-2 py-0.5 text-[10px] text-sky-300">
-                        <Brain className="h-3 w-3" />
-                        Carga {task.cognitive_load}
-                      </span>
-                      <span className={cn('h-2 w-2 rounded-full', priorityDot(task.priority))} />
-                    </div>
-
-                    <div className="mt-4 flex items-center justify-between border-t border-white/5 pt-3 text-xs">
-                      <div className="flex items-center gap-3 text-muted-foreground">
-                        {task.due_date && (
-                          <span
-                            className={cn(
-                              'inline-flex items-center gap-1',
-                              isOverdue && 'font-semibold text-rose-300',
-                            )}
-                          >
-                            <Calendar className="h-3 w-3" />
-                            {new Date(task.due_date).toLocaleDateString('pt-BR', {
-                              day: '2-digit',
-                              month: '2-digit',
-                            })}
-                          </span>
-                        )}
+                    {/* Bateria de Carga e Infos */}
+                    <div className="mt-4 flex items-center justify-between border-t border-white/5 pt-3 pl-1">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1">
+                          <Brain className="w-3 h-3 text-sky-400" />
+                          {renderCognitiveBattery(task.cognitive_load)}
+                        </div>
+                        <span className={cn('h-1.5 w-1.5 rounded-full', priorityDot(task.priority))} title={`Prioridade: ${task.priority}`} />
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3 text-xs">
+                        {task.due_date && (
+                          <span className={cn(
+                            'inline-flex items-center gap-1 text-[10px] uppercase font-bold tracking-widest',
+                            isOverdue ? 'text-rose-400 animate-pulse' : 'text-muted-foreground'
+                          )}>
+                            <Calendar className="h-3 w-3" />
+                            {new Date(task.due_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                          </span>
+                        )}
+                        
                         {task.assignee_id && (
-                          <Avatar className="h-6 w-6 border border-white/10" title={assigneeName}>
-                            <AvatarImage
-                              src={assignee?.profile?.avatar_url || task.assignee?.avatar_url || ''}
-                            />
-                            <AvatarFallback className="bg-brand-violet/20 text-[10px] text-brand-violet">
-                              {initials || 'SM'}
+                          <Avatar className="h-6 w-6 border border-white/10 ring-1 ring-transparent group-hover:ring-brand-violet/50 transition-all shadow-md" title={assigneeName}>
+                            <AvatarImage src={assignee?.profile?.avatar_url || task.assignee?.avatar_url || ''} />
+                            <AvatarFallback className="bg-brand-violet/20 text-[9px] font-black text-brand-violet">
+                              {initials || 'US'}
                             </AvatarFallback>
                           </Avatar>
                         )}
-                        <GripVertical className="h-4 w-4 text-muted-foreground/60" />
                       </div>
                     </div>
                   </article>
@@ -317,9 +332,9 @@ export function KanbanView({
               })}
 
               {tasksByColumn[column.id].length === 0 && (
-                <div className="flex h-32 flex-col items-center justify-center rounded-xl border-2 border-dashed border-white/10 text-sm text-muted-foreground">
-                  <GripVertical className="mb-2 h-6 w-6 opacity-40" />
-                  Solte tarefas aqui
+                <div className="flex h-32 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-white/5 bg-black/10 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50 transition-colors hover:border-white/10 hover:text-muted-foreground">
+                  <GripVertical className="mb-2 h-5 w-5 opacity-30" />
+                  Drop Zone
                 </div>
               )}
             </div>

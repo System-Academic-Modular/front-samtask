@@ -15,10 +15,14 @@ import {
   Palette,
   Plus,
   Save,
+  Pencil,
   Sun,
   Trash2,
   User,
   X,
+  Settings,
+  ShieldCheck,
+  Zap
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { updateProfile } from '@/lib/actions/profile'
@@ -137,7 +141,9 @@ export function SettingsView({
       localStorage.setItem('taskflow-accent-color', activeColor)
       applyBackgroundPreset(backgroundPreset)
       window.dispatchEvent(new Event('taskflow-appearance-changed'))
-      toast.success('Aparencia atualizada com sucesso.')
+      toast.success('Aparência tática atualizada.', {
+        icon: <Palette className="w-4 h-4 text-brand-violet" />
+      })
     })
   }
 
@@ -168,50 +174,66 @@ export function SettingsView({
     startTransition(async () => {
       const response = await deleteCategory(categoryId)
       if (response.error) toast.error(response.error)
-      else toast.success('Categoria removida.')
+      else toast.success('Categoria removida do banco de dados.')
     })
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 pb-20 md:flex-row">
+    <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 pb-20 md:flex-row relative">
+      {/* Background Decorativo Global para a tela de configurações */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-[400px] bg-brand-violet/5 blur-[120px] rounded-full pointer-events-none" />
+
+      {/* Modal de Categoria (High-Tech) */}
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm">
-          <Card className="w-full max-w-md border-white/10 bg-[#111827]/95 shadow-2xl">
-            <CardHeader className="flex flex-row items-center justify-between border-b border-white/10">
-              <CardTitle>{currentCategory.id ? 'Editar categoria' : 'Nova categoria'}</CardTitle>
-              <Button variant="ghost" size="icon" onClick={() => setIsCategoryModalOpen(false)}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-in fade-in duration-200">
+          <Card className="w-full max-w-md bg-[#0c0c0e]/95 border-brand-violet/30 shadow-[0_0_50px_rgba(139,92,246,0.15)] relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-brand-violet to-transparent" />
+            <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 bg-white/[0.02]">
+              <CardTitle className="flex items-center gap-2 text-white">
+                <FolderTree className="w-5 h-5 text-brand-violet" />
+                {currentCategory.id ? 'Editar Categoria' : 'Nova Categoria'}
+              </CardTitle>
+              <Button variant="ghost" size="icon" onClick={() => setIsCategoryModalOpen(false)} className="text-white/50 hover:text-white">
                 <X className="h-5 w-5" />
               </Button>
             </CardHeader>
-            <CardContent className="space-y-4 p-6">
+            <CardContent className="space-y-5 p-6">
               <div className="space-y-2">
-                <Label>Nome da categoria</Label>
+                <Label className="text-xs uppercase tracking-widest text-muted-foreground">Identificação</Label>
                 <Input
                   value={currentCategory.name}
                   onChange={(event) =>
                     setCurrentCategory((previous) => ({ ...previous, name: event.target.value }))
                   }
-                  className="border-white/10 bg-black/40"
+                  className="border-white/10 bg-black/40 focus-visible:ring-brand-violet font-semibold text-white"
+                  placeholder="Ex: Biologia"
                 />
               </div>
               <div className="space-y-2">
-                <Label>Cor</Label>
-                <Input
-                  type="color"
-                  value={currentCategory.color}
-                  onChange={(event) =>
-                    setCurrentCategory((previous) => ({ ...previous, color: event.target.value }))
-                  }
-                  className="h-12 cursor-pointer border-white/10 bg-black/40 p-1"
-                />
+                <Label className="text-xs uppercase tracking-widest text-muted-foreground">Cor de Destaque</Label>
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl border-2 border-white/10 shadow-inner flex shrink-0 items-center justify-center overflow-hidden bg-black/40">
+                    <Input
+                      type="color"
+                      value={currentCategory.color}
+                      onChange={(event) =>
+                        setCurrentCategory((previous) => ({ ...previous, color: event.target.value }))
+                      }
+                      className="h-16 w-16 cursor-pointer border-0 p-0"
+                    />
+                  </div>
+                  <div className="flex-1 text-xs text-white/50 font-mono bg-black/40 p-3 rounded-xl border border-white/5 uppercase">
+                    {currentCategory.color}
+                  </div>
+                </div>
               </div>
-              <div className="flex justify-end gap-2 pt-3">
-                <Button variant="ghost" onClick={() => setIsCategoryModalOpen(false)}>
+              <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
+                <Button variant="ghost" onClick={() => setIsCategoryModalOpen(false)} className="hover:bg-white/5">
                   Cancelar
                 </Button>
-                <Button onClick={handleSaveCategory} disabled={isPending} className="bg-brand-violet text-white">
-                  {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Salvar
+                <Button onClick={handleSaveCategory} disabled={isPending} className="bg-brand-violet text-white hover:bg-brand-violet/90 shadow-[0_0_15px_rgba(139,92,246,0.4)]">
+                  {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  Salvar Módulo
                 </Button>
               </div>
             </CardContent>
@@ -219,248 +241,267 @@ export function SettingsView({
         </div>
       )}
 
-      <nav className="hidden w-64 shrink-0 flex-col gap-2 md:flex">
-        <NavButton active={currentTab === 'profile'} onClick={() => setCurrentTab('profile')} icon={User} label="Perfil" />
-        <NavButton
-          active={currentTab === 'appearance'}
-          onClick={() => setCurrentTab('appearance')}
-          icon={Palette}
-          label="Aparência"
-        />
-        <NavButton
-          active={currentTab === 'workspace'}
-          onClick={() => setCurrentTab('workspace')}
-          icon={FolderTree}
-          label="Organização"
-        />
-        <NavButton
-          active={currentTab === 'integrations'}
-          onClick={() => setCurrentTab('integrations')}
-          icon={Globe}
-          label="Integrações"
-        />
+      {/* Menu Lateral Tático */}
+      <nav className="hidden w-64 shrink-0 flex-col gap-2 md:flex relative z-10">
+        <div className="mb-4 px-4">
+          <h2 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+            <Settings className="w-4 h-4" /> Sistema
+          </h2>
+        </div>
+        <NavButton active={currentTab === 'profile'} onClick={() => setCurrentTab('profile')} icon={User} label="Perfil Neural" />
+        <NavButton active={currentTab === 'appearance'} onClick={() => setCurrentTab('appearance')} icon={Palette} label="Aparência Visual" />
+        <NavButton active={currentTab === 'workspace'} onClick={() => setCurrentTab('workspace')} icon={FolderTree} label="Organização" />
+        <NavButton active={currentTab === 'integrations'} onClick={() => setCurrentTab('integrations')} icon={Globe} label="Integrações API" />
       </nav>
 
-      <div className="min-w-0 flex-1">
+      {/* Área de Conteúdo */}
+      <div className="min-w-0 flex-1 relative z-10">
         <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
+          
+          {/* ABA PERFIL */}
           <TabsContent value="profile">
-            <Card className="border-white/10 bg-[#111827]/65 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle>Informações da conta</CardTitle>
-                <CardDescription>Atualize seus dados principais de acesso.</CardDescription>
+            <Card className="border-white/5 bg-card/40 backdrop-blur-xl shadow-2xl">
+              <CardHeader className="border-b border-white/5 bg-white/[0.02]">
+                <CardTitle className="text-xl">Identificação de Usuário</CardTitle>
+                <CardDescription>Atualize suas credenciais de acesso ao sistema.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-8 p-6">
                 <div className="flex items-center gap-6">
-                  <Avatar className="h-20 w-20 border-2 border-white/10 ring-2 ring-brand-violet/20">
-                    <AvatarImage src={profile?.avatar_url || ''} />
-                    <AvatarFallback className="bg-brand-violet text-xl text-white">
-                      {fullName?.substring(0, 2).toUpperCase() || 'US'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <Button variant="outline" size="sm" disabled className="border-white/10">
-                    Alterar foto
-                  </Button>
-                </div>
-                <Separator className="bg-white/10" />
-                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="relative group">
+                    <div className="absolute inset-0 bg-brand-violet/20 blur-xl rounded-full group-hover:bg-brand-violet/40 transition-all" />
+                    <Avatar className="h-24 w-24 border-2 border-white/10 ring-4 ring-brand-violet/20 relative z-10">
+                      <AvatarImage src={profile?.avatar_url || ''} />
+                      <AvatarFallback className="bg-gradient-to-br from-brand-violet to-brand-cyan text-2xl font-black text-white">
+                        {fullName?.substring(0, 2).toUpperCase() || 'US'}
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
                   <div className="space-y-2">
-                    <Label>Nome completo</Label>
+                    <h3 className="font-bold text-white text-lg">{fullName || 'Explorador'}</h3>
+                    <Badge variant="outline" className="bg-brand-violet/10 text-brand-violet border-brand-violet/20 uppercase tracking-widest text-[9px]">
+                      <ShieldCheck className="w-3 h-3 mr-1" /> Piloto Autorizado
+                    </Badge>
+                  </div>
+                </div>
+                
+                <Separator className="bg-white/5" />
+                
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-3">
+                    <Label className="text-xs uppercase tracking-widest text-muted-foreground">Nome de Registro</Label>
                     <Input
                       value={fullName}
                       onChange={(event) => setFullName(event.target.value)}
-                      className="border-white/10 bg-black/30"
+                      className="border-white/10 bg-black/40 h-12 focus-visible:ring-brand-violet font-semibold"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Email de acesso</Label>
-                    <Input value={user?.email || ''} disabled className="border-white/5 bg-black/50 opacity-70" />
+                  <div className="space-y-3">
+                    <Label className="text-xs uppercase tracking-widest text-muted-foreground">Link de Comunicação (Email)</Label>
+                    <Input value={user?.email || ''} disabled className="border-white/5 bg-black/60 opacity-50 h-12 cursor-not-allowed" />
                   </div>
                 </div>
-                <div className="flex justify-end pt-2">
-                  <Button onClick={handleSaveProfile} disabled={isPending} className="bg-brand-violet text-white">
+                
+                <div className="flex justify-end pt-4 border-t border-white/5">
+                  <Button onClick={handleSaveProfile} disabled={isPending} className="bg-brand-violet text-white hover:bg-brand-violet/90 shadow-neon">
                     {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                    Salvar perfil
+                    Atualizar Banco de Dados
                   </Button>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
+          {/* ABA APARÊNCIA */}
           <TabsContent value="appearance">
-            <Card className="border-white/10 bg-[#111827]/65 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle>Aparência dinâmica</CardTitle>
+            <Card className="border-white/5 bg-card/40 backdrop-blur-xl shadow-2xl">
+              <CardHeader className="border-b border-white/5 bg-white/[0.02]">
+                <CardTitle className="text-xl flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-brand-violet" /> Motores Visuais
+                </CardTitle>
                 <CardDescription>
-                  Ajuste tema, paleta e fundo para manter foco visual elegante.
+                  Configure a iluminação e as cores para melhorar sua retenção cognitiva.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-8">
-                <div className="grid grid-cols-3 gap-4">
-                  <ThemeBtn active={theme === 'light'} onClick={() => setTheme('light')} icon={Sun} label="Claro" />
-                  <ThemeBtn active={theme === 'dark'} onClick={() => setTheme('dark')} icon={Moon} label="Escuro" />
-                  <ThemeBtn active={theme === 'system'} onClick={() => setTheme('system')} icon={Laptop} label="Sistema" />
-                </div>
-
-                <Separator className="bg-white/10" />
-
+              <CardContent className="space-y-8 p-6">
+                
                 <div className="space-y-4">
-                  <Label>Cor principal da interface</Label>
+                  <Label className="text-xs uppercase tracking-widest text-muted-foreground">Espectro de Cor Principal</Label>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {accentColors.map((color) => (
                       <button
                         key={color.variable}
                         onClick={() => setActiveColor(color.variable)}
                         className={cn(
-                          'group rounded-xl border px-3 py-3 text-left transition-all',
+                          'group relative rounded-xl border p-4 text-left transition-all overflow-hidden',
                           activeColor === color.variable
-                            ? 'border-white/50 bg-white/10 shadow-[0_0_25px_rgba(255,255,255,0.12)]'
-                            : 'border-white/10 bg-black/20 hover:border-white/25',
+                            ? 'border-white/40 bg-white/10 shadow-lg'
+                            : 'border-white/5 bg-black/20 hover:border-white/20 hover:bg-white/[0.02]'
                         )}
                       >
+                        {activeColor === color.variable && (
+                          <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ backgroundColor: color.hex }} />
+                        )}
                         <div
-                          className="mb-2 h-5 w-5 rounded-full border border-white/20"
+                          className={cn(
+                            "mb-3 h-6 w-6 rounded-full border-2 transition-transform duration-300",
+                            activeColor === color.variable ? "border-white scale-110 shadow-[0_0_15px_rgba(255,255,255,0.5)]" : "border-white/10 group-hover:scale-110"
+                          )}
                           style={{ backgroundColor: color.hex }}
                         />
-                        <p className="text-xs font-semibold text-white">{color.name}</p>
+                        <p className={cn("text-xs font-bold uppercase tracking-wider", activeColor === color.variable ? "text-white" : "text-muted-foreground group-hover:text-white/80")}>
+                          {color.name}
+                        </p>
                       </button>
                     ))}
                   </div>
                 </div>
 
                 <div className="space-y-4">
-                  <Label>Estilo de fundo</Label>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <Label className="text-xs uppercase tracking-widest text-muted-foreground">Ambiente de Fundo (HUD)</Label>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                     {backgroundPresets.map((preset) => (
                       <button
                         key={preset.id}
                         onClick={() => setBackgroundPreset(preset.id)}
                         className={cn(
-                          'rounded-xl border p-2 text-left transition-all',
+                          'group rounded-xl border p-2 text-left transition-all',
                           backgroundPreset === preset.id
-                            ? 'border-white/50 shadow-[0_0_22px_rgba(59,130,246,0.18)]'
-                            : 'border-white/10 hover:border-white/25',
+                            ? 'border-brand-violet/50 bg-brand-violet/5 shadow-[0_0_20px_var(--brand-glow)]'
+                            : 'border-white/5 bg-black/20 hover:border-white/20'
                         )}
                       >
-                        <div className="h-16 rounded-lg border border-white/10" style={{ background: preset.preview }} />
-                        <p className="mt-2 text-xs font-medium text-white/90">{preset.label}</p>
+                        <div className="h-20 rounded-lg border border-white/10 w-full transition-transform duration-500 group-hover:scale-[1.02]" style={{ background: preset.preview }} />
+                        <div className="p-2">
+                          <p className={cn("text-xs font-bold uppercase tracking-wider", backgroundPreset === preset.id ? "text-brand-violet" : "text-muted-foreground")}>
+                            {preset.label}
+                          </p>
+                        </div>
                       </button>
                     ))}
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-black/30 p-4">
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Prévia ativa</p>
-                  <p className="mt-1 text-sm text-white">
-                    Cor: <span style={{ color: activeAccent.hex }}>{activeAccent.name}</span> · Fundo:{' '}
-                    {backgroundPresets.find((preset) => preset.id === backgroundPreset)?.label}
-                  </p>
-                </div>
-
-                <div className="flex justify-end pt-2">
-                  <Button onClick={handleSaveAppearance} disabled={isPending} className="bg-brand-violet text-white">
-                    {isPending ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="mr-2 h-4 w-4" />
-                    )}
-                    Aplicar preferências
+                <div className="flex justify-end pt-4 border-t border-white/5">
+                  <Button onClick={handleSaveAppearance} disabled={isPending} className="bg-brand-violet text-white hover:bg-brand-violet/90 shadow-neon">
+                    {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                    Sincronizar Visuais
                   </Button>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
+          {/* ABA CATEGORIAS (WORKSPACE) */}
           <TabsContent value="workspace">
-            <Card className="border-white/10 bg-[#111827]/65 backdrop-blur-sm">
-              <CardHeader className="flex flex-row items-center justify-between">
+            <Card className="border-white/5 bg-card/40 backdrop-blur-xl shadow-2xl">
+              <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 bg-white/[0.02]">
                 <div>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="text-xl flex items-center gap-2">
                     <FolderTree className="h-5 w-5 text-brand-cyan" />
-                    Suas categorias
+                    Módulos de Estudo
                   </CardTitle>
-                  <CardDescription>Base para Kanban, relatórios e barras de maestria.</CardDescription>
+                  <CardDescription>O núcleo que alimenta o Mapa de Retenção Neural.</CardDescription>
                 </div>
                 <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-white/10"
                   onClick={() => {
                     setCurrentCategory({ id: '', name: '', color: '#6366f1' })
                     setIsCategoryModalOpen(true)
                   }}
+                  className="bg-brand-cyan/10 text-brand-cyan border border-brand-cyan/20 hover:bg-brand-cyan hover:text-black transition-all shadow-[0_0_15px_rgba(6,182,212,0.2)]"
                 >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Nova
+                  <Plus className="mr-2 h-4 w-4" /> Novo Módulo
                 </Button>
               </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-3">
+              <CardContent className="p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                   {categories.length > 0 ? (
                     categories.map((category) => (
-                      <Badge
+                      <div
                         key={category.id}
-                        variant="outline"
-                        className="group border-white/10 bg-black/20 px-3 py-1.5 transition-all hover:border-brand-violet/50"
+                        className="group flex items-center justify-between border border-white/5 bg-black/20 p-4 rounded-xl transition-all hover:border-white/20 hover:bg-white/[0.02]"
                       >
-                        <div className="mr-2 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: category.color }} />
-                        {category.name}
-                        <button
-                          onClick={() => {
-                            setCurrentCategory({
-                              id: category.id,
-                              name: category.name,
-                              color: category.color,
-                            })
-                            setIsCategoryModalOpen(true)
-                          }}
-                          className="ml-2 text-[10px] font-semibold uppercase text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-white"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          onClick={() => handleRemoveCategory(category.id)}
-                          className="ml-2 text-rose-300 opacity-0 transition-opacity group-hover:opacity-100 hover:text-rose-200"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      </Badge>
+                        <div className="flex items-center gap-3 overflow-hidden">
+                          <div className="h-3 w-3 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: category.color }} />
+                          <span className="font-bold text-sm text-white/90 truncate">{category.name}</span>
+                        </div>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-7 w-7 text-muted-foreground hover:text-white bg-white/5"
+                            onClick={() => {
+                              setCurrentCategory({
+                                id: category.id,
+                                name: category.name,
+                                color: category.color,
+                              })
+                              setIsCategoryModalOpen(true)
+                            }}
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-7 w-7 text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20"
+                            onClick={() => handleRemoveCategory(category.id)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
                     ))
                   ) : (
-                    <p className="text-sm italic text-muted-foreground">
-                      Crie categorias para organizar suas metas por contexto.
-                    </p>
+                    <div className="col-span-full py-12 flex flex-col items-center justify-center border border-dashed border-white/10 rounded-2xl bg-white/[0.01]">
+                      <FolderTree className="h-10 w-10 text-white/10 mb-3" />
+                      <p className="text-xs uppercase tracking-widest text-muted-foreground font-semibold">
+                        Nenhum módulo detectado.
+                      </p>
+                    </div>
                   )}
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
+          {/* ABA INTEGRAÇÕES */}
           <TabsContent value="integrations" className="space-y-4">
-            <Card className="border-white/10 bg-[#111827]/65 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle>Conexões de produtividade</CardTitle>
-                <CardDescription>Ative integrações para automações mais inteligentes.</CardDescription>
+            <Card className="border-white/5 bg-card/40 backdrop-blur-xl shadow-2xl">
+              <CardHeader className="border-b border-white/5 bg-white/[0.02]">
+                <CardTitle className="text-xl flex items-center gap-2">
+                  <Globe className="w-5 h-5 text-emerald-400" />
+                  Conexões Externas
+                </CardTitle>
+                <CardDescription>Ligue o FocusOS a outros sistemas para automação total.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <IntegrationCard
-                  icon="https://upload.wikimedia.org/wikipedia/commons/a/a5/Google_Calendar_icon_%282020%29.svg"
-                  title="Google Calendar"
-                  description="Sincronize prazos automaticamente."
-                  connected={integrations.some((integration) => integration.provider === 'google_calendar')}
-                />
-                <IntegrationCard
-                  lucideIcon={Github}
-                  title="GitHub"
-                  description="Issues e PRs direto no seu fluxo."
-                  connected={false}
-                />
+              <CardContent className="space-y-4 p-6">
+                
+                {/* SPOTIFY CARD (CORRIGIDO) */}
                 <IntegrationCard
                   lucideIcon={Music}
                   iconColor="#1DB954"
-                  title="Spotify"
-                  description="Use playlists para ciclos de foco e respiro."
+                  title="Spotify API"
+                  description="Controle o player e playlists pelo Modo Zen."
                   connected={integrations.some((integration) => integration.provider === 'spotify')}
+                  actionUrl="/api/integrations/spotify/connect" // A ROTA CORRETA AQUI!
                 />
+                
+                <IntegrationCard
+                  icon="https://upload.wikimedia.org/wikipedia/commons/a/a5/Google_Calendar_icon_%282020%29.svg"
+                  title="Google Calendar"
+                  description="Sincronize eventos como missões."
+                  connected={integrations.some((integration) => integration.provider === 'google_calendar')}
+                  actionUrl="#"
+                />
+                
+                <IntegrationCard
+                  lucideIcon={Github}
+                  title="GitHub"
+                  description="Importe issues como tarefas táticas."
+                  connected={false}
+                  actionUrl="#"
+                />
+                
               </CardContent>
             </Card>
           </TabsContent>
@@ -470,93 +511,57 @@ export function SettingsView({
   )
 }
 
-function NavButton({
-  active,
-  onClick,
-  icon: Icon,
-  label,
-}: {
-  active: boolean
-  onClick: () => void
-  icon: ComponentType<{ className?: string }>
-  label: string
-}) {
+function NavButton({ active, onClick, icon: Icon, label }: any) {
   return (
     <Button
-      variant={active ? 'secondary' : 'ghost'}
+      variant="ghost"
       className={cn(
-        'justify-start gap-3',
-        active && 'rounded-none border-l-2 border-brand-violet bg-brand-violet/10 text-brand-violet',
+        'justify-start gap-3 h-12 transition-all',
+        active 
+          ? 'bg-brand-violet/10 text-brand-violet border-r-2 border-brand-violet hover:bg-brand-violet/20 hover:text-brand-violet' 
+          : 'text-muted-foreground hover:bg-white/5 hover:text-white'
       )}
       onClick={onClick}
     >
       <Icon className="h-4 w-4" />
-      {label}
+      <span className="font-semibold uppercase tracking-wider text-xs">{label}</span>
     </Button>
   )
 }
 
-function ThemeBtn({
-  active,
-  onClick,
-  icon: Icon,
-  label,
-}: {
-  active: boolean
-  onClick: () => void
-  icon: ComponentType<{ className?: string }>
-  label: string
-}) {
+function IntegrationCard({ icon, lucideIcon: Icon, title, description, connected, iconColor, actionUrl }: any) {
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'flex flex-col items-center justify-center rounded-xl border-2 p-4 transition-all',
-        active
-          ? 'border-brand-violet bg-brand-violet/10 text-brand-violet'
-          : 'border-white/10 bg-black/20 text-muted-foreground hover:border-white/25',
-      )}
-    >
-      <Icon className="mb-2 h-6 w-6" />
-      <span className="text-xs font-medium">{label}</span>
-    </button>
-  )
-}
-
-function IntegrationCard({
-  icon,
-  lucideIcon: Icon,
-  title,
-  description,
-  connected,
-  iconColor,
-}: {
-  icon?: string
-  lucideIcon?: ComponentType<{ className?: string; style?: CSSProperties }>
-  title: string
-  description: string
-  connected: boolean
-  iconColor?: string
-}) {
-  return (
-    <div className="flex items-center justify-between rounded-xl border border-white/10 bg-black/25 p-4">
-      <div className="flex items-center gap-4">
-        <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-white/5">
+    <div className="flex items-center justify-between rounded-2xl border border-white/5 bg-black/20 p-5 hover:border-white/10 transition-colors group">
+      <div className="flex items-center gap-5">
+        <div className={cn(
+          "flex h-14 w-14 items-center justify-center rounded-xl border border-white/5 bg-white/[0.02] shadow-inner transition-colors",
+          connected ? "border-emerald-500/30 bg-emerald-500/5 shadow-[0_0_20px_rgba(16,185,129,0.1)]" : "group-hover:bg-white/5"
+        )}>
           {icon ? (
-            <img src={icon} alt={title} className="h-7 w-7 object-contain" />
+            <img src={icon} alt={title} className="h-8 w-8 object-contain" />
           ) : Icon ? (
-            <Icon className="h-7 w-7" style={{ color: iconColor }} />
+            <Icon className="h-8 w-8" style={{ color: connected ? iconColor || '#fff' : '#888' }} />
           ) : null}
         </div>
         <div>
-          <h4 className="text-sm font-semibold text-white">{title}</h4>
-          <p className="text-xs text-muted-foreground">{description}</p>
+          <h4 className="text-base font-bold text-white flex items-center gap-2">
+            {title}
+            {connected && <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Online" />}
+          </h4>
+          <p className="text-xs text-muted-foreground uppercase tracking-widest mt-1">{description}</p>
         </div>
       </div>
       <Button
-        variant={connected ? 'destructive' : 'outline'}
-        size="sm"
-        className={cn(!connected && 'border-white/10 hover:bg-white/5')}
+        variant={connected ? 'outline' : 'default'}
+        className={cn(
+          "min-w-[120px] font-bold text-xs uppercase tracking-widest",
+          connected 
+            ? 'border-red-500/20 text-red-400 hover:bg-red-500/10 hover:text-red-300' 
+            : 'bg-white text-black hover:bg-gray-200'
+        )}
+        onClick={() => {
+          if (!connected && actionUrl) window.location.href = actionUrl
+        }}
       >
         {connected ? 'Desconectar' : 'Conectar'}
       </Button>

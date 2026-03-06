@@ -1,4 +1,4 @@
-export type TaskStatus = 'todo' | 'in_progress' | 'done'
+export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done' // Adicionado 'review'
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent'
 export type PomodoroType = 'work' | 'short_break' | 'long_break'
 export type CognitiveLoad = 1 | 2 | 3 | 4 | 5
@@ -14,6 +14,13 @@ export interface Profile {
   long_break?: number | null
   theme_color?: string | null
   theme_mode?: 'light' | 'dark' | 'system' | null
+  
+  // Novos Campos (Gamificação e UI Avançada)
+  xp?: number
+  current_level?: number
+  theme_preset?: string
+  accent_color?: string
+  
   created_at: string
   updated_at: string
 }
@@ -77,6 +84,11 @@ export interface Task {
   actual_minutes?: number | null
   is_recurring?: boolean | null
   recurrence_pattern?: string | null
+  
+  // Novos Campos (Algoritmo de Repetição Espaçada)
+  next_review_date?: string | null
+  review_count?: number
+  
   category?: Category | null
   assignee?: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
   subtasks?: Task[]
@@ -98,11 +110,13 @@ export interface MasteryScore {
   score: number
   total_minutes: number
   last_session_at: string | null
+  last_study_date?: string | null // Sincronizado com a View de Retenção Neural
   created_at: string
   updated_at: string
   category?: Category | null
 }
 
+// Alias de retrocompatibilidade para o resto do sistema
 export type Tarefa = Task
 export type Categoria = Category
 export type StatusTarefa = TaskStatus

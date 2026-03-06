@@ -31,3 +31,21 @@ export async function saveSpotifyTokens(
   revalidatePath('/dashboard/settings')
   return { success: true }
 }
+export async function getActiveSpotifyToken() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Não autorizado' }
+
+  const { data, error } = await supabase
+    .from('integrations')
+    .select('access_token')
+    .eq('user_id', user.id)
+    .eq('provider', 'spotify')
+    .single()
+
+  if (error || !data) {
+    return { error: 'Spotify não conectado' }
+  }
+
+  return { token: data.access_token }
+}

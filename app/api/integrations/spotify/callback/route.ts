@@ -1,35 +1,29 @@
-import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { saveSpotifyTokens } from '@/lib/actions/spotify'
+
+const CLIENT_ID = '1ab1a7a9213d4d119a7c72af7a628e12'
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const code = searchParams.get('code')
-  
-  if (!code) return NextResponse.redirect('/dashboard/settings?error=spotify_denied')
+  // BLINDAGEM: Se estiver na Vercel usa HTTPS, se estiver no PC usa HTTP.
+  const isProd = process.env.NODE_ENV === 'production'
+  const REDIRECT_URI = isProd 
+    ? `https://${process.env.VERCEL_URL || 'https://focusos-alpha.vercel.app/'}/api/integrations/spotify/callback`
+    : 'https://localhost:3000/api/integrations/spotify/callback'
 
-  // Troca o CODE pelo ACCESS_TOKEN
-  const response = await fetch('https://accounts.spotify.com/api/token', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Authorization': 'Basic ' + Buffer.from(
-        '1ab1a7a9213d4d119a7c72af7a628e12' + ':' + process.env.SPOTIFY_CLIENT_SECRET
-      ).toString('base64'),
-    },
-    body: new URLSearchParams({
-      code,
-      redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/integrations/spotify/callback`,
-      grant_type: 'authorization_code',
-    }),
+  const SCOPES = [
+    'user-read-private',
+    'user-read-email',
+    'playlist-read-private',
+    'user-modify-playback-state',
+    'user-read-playback-state',
+    'user-read-currently-playing'
+  ].join(' ')
+
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    redirect_uri: REDIRECT_URI,
   })
 
-  const data = await response.json()
-
-  if (data.access_token) {
-    await saveSpotifyTokens(data.access_token, data.refresh_token, data.expires_in)
-    return NextResponse.redirect('/dashboard/settings?success=spotify_connected')
-  }
-
-  return NextResponse.redirect('/dashboard/settings?error=token_exchange_failed')
+  return NextResponse.redirect(`https://accounts.spotify.com/authorize?${params.toString()}`)
 }

@@ -1,9 +1,12 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { normalizeCognitiveLoad } from '@/lib/effort'
 import { createClient } from '@/lib/supabase/server'
-import type { CognitiveLoad, Task, TaskPriority, TaskStatus } from '@/lib/types'
+import type { Task, TaskPriority, TaskStatus } from '@/lib/types'
+
+// ----------------------------------------------------------------------
+// CONSTANTES E CONFIGURAÇÕES TÁTICAS
+// ----------------------------------------------------------------------
 
 const TASK_SELECT = `
   *,
@@ -11,90 +14,83 @@ const TASK_SELECT = `
   assignee:profiles!assignee_id(id, full_name, avatar_url)
 `
 
+// Algoritmo de Repetição Espaçada Padrão (Dias)
 const REVIEW_INTERVALS = [7, 30] as const
 
-type ReviewSeedTask = Pick<
-  Task,
-  | 'id'
-  | 'user_id'
-  | 'team_id'
-  | 'category_id'
-  | 'priority'
-  | 'title'
-  | 'description'
-  | 'estimated_minutes'
-  | 'cognitive_load'
->
+// Multiplicadores de Gamificação
+const PRIORITY_MULTIPLIER: Record<TaskPriority, number> = {
+  low: 1.0,
+  medium: 1.2,
+  high: 1.5,
+  urgent: 2.0,
+}
+
+// ----------------------------------------------------------------------
+// FUNÇÕES AUXILIARES (HELPERS)
+// ----------------------------------------------------------------------
 
 function normalizePriority(priority?: TaskPriority | null): TaskPriority {
   if (!priority) return 'medium'
   return priority === 'urgent' ? 'high' : priority
 }
 
-function getReviewTitle(baseTitle: string) {
-  if (baseTitle.startsWith('Revisao Rapida · ')) {
-    return baseTitle.replace(/^Revisao Rapida · /, '')
-  }
-  if (baseTitle.startsWith('Revisão Rápida · ')) {
-    return baseTitle.replace(/^Revisão Rápida · /, '')
-  }
-  return baseTitle
+function getBaseTitle(title: string) {
+  // Limpa prefixos de revisões anteriores para não acumular "Revisão · Revisão · Título"
+  return title.replace(/^(Revisão Espaçada · |Revisão Rápida · |Revisao Rapida · )+/, '')
 }
 
-function normalizeDbError(error?: { message?: string } | null) {
-  return (error?.message || '').toLowerCase()
-}
+// ----------------------------------------------------------------------
+// MOTOR DE GAMIFICAÇÃO (DISTRIBUIÇÃO DE XP)
+// ----------------------------------------------------------------------
 
-async function insertTaskWithCognitiveFallback(
+async function awardTaskXP(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  payload: Record<string, unknown>,
+  userId: string,
+  cognitiveLoad: number,
+  priority: TaskPriority
 ) {
-  const firstTry = await supabase.from('tasks').insert(payload).select(TASK_SELECT).single()
-  if (!firstTry.error) return firstTry
+  // Cálculo: Base (10) * Carga Mental (1 a 5) * Multiplicador de Prioridade
+  const baseXP = 10
+  const earnedXP = Math.round(baseXP * cognitiveLoad * PRIORITY_MULTIPLIER[priority])
 
-  const normalizedMessage = normalizeDbError(firstTry.error)
-  if (!normalizedMessage.includes('cognitive_load')) return firstTry
-
-  const { cognitive_load, ...fallbackPayload } = payload
-  return supabase.from('tasks').insert(fallbackPayload).select(TASK_SELECT).single()
-}
-
-async function updateTaskWithCognitiveFallback(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  taskId: string,
-  payload: Record<string, unknown>,
-) {
-  const firstTry = await supabase
-    .from('tasks')
-    .update(payload)
-    .eq('id', taskId)
-    .select(TASK_SELECT)
+  // Puxa o perfil atual
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id, xp, current_level')
+    .eq('id', userId)
     .single()
 
-  if (!firstTry.error) return firstTry
+  if (!profile) return
 
-  const normalizedMessage = normalizeDbError(firstTry.error)
-  if (!normalizedMessage.includes('cognitive_load')) return firstTry
+  const currentXP = profile.xp || 0
+  let currentLevel = profile.current_level || 1
+  const newXP = currentXP + earnedXP
 
-  const { cognitive_load, ...fallbackPayload } = payload
-  return supabase
-    .from('tasks')
-    .update(fallbackPayload)
-    .eq('id', taskId)
-    .select(TASK_SELECT)
-    .single()
+  // Lógica de Level Up (Exemplo: 100 XP para o Nível 2, 300 para Nível 3, etc)
+  const xpForNextLevel = currentLevel * 100
+  if (newXP >= xpForNextLevel) {
+    currentLevel += 1
+  }
+
+  // Salva no banco
+  await supabase
+    .from('profiles')
+    .update({ xp: newXP, current_level: currentLevel })
+    .eq('id', userId)
 }
 
-async function hasReviewTaskForInterval(params: {
-  supabase: Awaited<ReturnType<typeof createClient>>
-  sourceTask: ReviewSeedTask
-  title: string
-  dueDateISO: string
-}) {
-  const { supabase, sourceTask, title, dueDateISO } = params
-  const dueDate = new Date(dueDateISO)
+// ----------------------------------------------------------------------
+// ALGORITMO DE REPETIÇÃO ESPAÇADA
+// ----------------------------------------------------------------------
 
-  const start = new Date(dueDate)
+async function hasReviewTaskForInterval(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  title: string,
+  dueDateISO: string,
+  teamId?: string | null
+) {
+  const start = new Date(dueDateISO)
   start.setHours(0, 0, 0, 0)
   const end = new Date(start)
   end.setDate(end.getDate() + 1)
@@ -102,70 +98,67 @@ async function hasReviewTaskForInterval(params: {
   let query = supabase
     .from('tasks')
     .select('id')
-    .eq('user_id', sourceTask.user_id)
+    .eq('user_id', userId)
     .eq('title', title)
     .gte('due_date', start.toISOString())
     .lt('due_date', end.toISOString())
     .limit(1)
 
-  if (sourceTask.team_id) {
-    query = query.eq('team_id', sourceTask.team_id)
-  } else {
-    query = query.is('team_id', null)
-  }
+  if (teamId) query = query.eq('team_id', teamId)
+  else query = query.is('team_id', null)
 
   const { data } = await query
   return Boolean(data && data.length > 0)
 }
 
-async function createSpacedReviewTasks(params: {
-  supabase: Awaited<ReturnType<typeof createClient>>
-  sourceTask: ReviewSeedTask
+async function createSpacedReviewTasks(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  sourceTask: Task,
   completedAtISO: string
-}) {
-  const { supabase, sourceTask, completedAtISO } = params
-
-  const baseTitle = getReviewTitle(sourceTask.title)
-  const reviewTitle = `Revisao Rapida · ${baseTitle}`
+) {
+  const baseTitle = getBaseTitle(sourceTask.title)
+  const reviewTitle = `Revisão Espaçada · ${baseTitle}`
 
   for (const intervalDays of REVIEW_INTERVALS) {
     const dueDate = new Date(completedAtISO)
     dueDate.setDate(dueDate.getDate() + intervalDays)
 
-    const alreadyExists = await hasReviewTaskForInterval({
+    const alreadyExists = await hasReviewTaskForInterval(
       supabase,
-      sourceTask,
-      title: reviewTitle,
-      dueDateISO: dueDate.toISOString(),
-    })
+      sourceTask.user_id,
+      reviewTitle,
+      dueDate.toISOString(),
+      sourceTask.team_id
+    )
 
     if (alreadyExists) continue
 
-    const insertPayload: Record<string, unknown> = {
+    // Insere direto na nova coluna 'review' com carga mental e tempo reduzidos
+    const { error } = await supabase.from('tasks').insert({
       user_id: sourceTask.user_id,
       team_id: sourceTask.team_id ?? null,
       category_id: sourceTask.category_id ?? null,
       title: reviewTitle,
       description: sourceTask.description
-        ? `Revisao automatica (${intervalDays} dias): ${sourceTask.description}`
-        : `Revisao automatica (${intervalDays} dias).`,
-      status: 'todo',
+        ? `Revisão programada pelo sistema (${intervalDays} dias pós-estudo).\n\nOriginal: ${sourceTask.description}`
+        : `Revisão programada pelo sistema (${intervalDays} dias pós-estudo).`,
+      status: 'review', // <--- AGORA VAI PARA A COLUNA NOVA DO KANBAN
       priority: normalizePriority(sourceTask.priority),
       due_date: dueDate.toISOString(),
-      estimated_minutes: sourceTask.estimated_minutes ?? 15,
+      estimated_minutes: Math.max(5, Math.floor((sourceTask.estimated_minutes ?? 20) / 2)), // Revisa na metade do tempo
       is_recurring: false,
-      recurrence_pattern: 'spaced_review',
-      cognitive_load: normalizeCognitiveLoad((sourceTask.cognitive_load ?? 3) - 1),
-    }
-
-    const { error } = await insertTaskWithCognitiveFallback(supabase, insertPayload)
+      cognitive_load: Math.max(1, (sourceTask.cognitive_load ?? 3) - 1), // Revisa gasta menos bateria
+    })
 
     if (error) {
-      // Falha silenciosa: revisão não pode quebrar o fluxo de conclusão da tarefa principal.
-      console.error('Erro ao criar revisao automatica:', error.message)
+      console.error('[Sistema Neural] Falha ao injetar revisão no banco:', error.message)
     }
   }
 }
+
+// ----------------------------------------------------------------------
+// EXPORTAÇÕES: CRUD PRINCIPAL (SERVER ACTIONS)
+// ----------------------------------------------------------------------
 
 export async function getTasks(filters?: {
   status?: TaskStatus[]
@@ -176,19 +169,14 @@ export async function getTasks(filters?: {
   team_id?: string
 }) {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) return { error: 'Unauthorized', data: [] as Task[] }
+  if (!user) return { error: 'Acesso negado aos satélites.', data: [] as Task[] }
 
   let query = supabase.from('tasks').select(TASK_SELECT).is('parent_id', null)
 
-  if (filters?.team_id) {
-    query = query.eq('team_id', filters.team_id)
-  } else {
-    query = query.eq('user_id', user.id).is('team_id', null)
-  }
+  if (filters?.team_id) query = query.eq('team_id', filters.team_id)
+  else query = query.eq('user_id', user.id).is('team_id', null)
 
   if (filters?.status?.length) query = query.in('status', filters.status)
   if (filters?.priority?.length) query = query.in('priority', filters.priority)
@@ -213,19 +201,17 @@ export async function getTasks(filters?: {
 
 export async function createTask(data: Partial<Task>) {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) return { error: 'Unauthorized' }
+  if (!user) return { error: 'Link Neural perdido. Faça login novamente.' }
 
-  const payload: Record<string, unknown> = {
+  const payload = {
     ...data,
     user_id: user.id,
-    cognitive_load: normalizeCognitiveLoad(data.cognitive_load),
+    cognitive_load: data.cognitive_load || 3, // Padrão seguro
   }
 
-  const { data: task, error } = await insertTaskWithCognitiveFallback(supabase, payload)
+  const { data: task, error } = await supabase.from('tasks').insert(payload).select(TASK_SELECT).single()
 
   if (error) return { error: error.message }
 
@@ -235,70 +221,69 @@ export async function createTask(data: Partial<Task>) {
 
 export async function updateTask(id: string, data: Partial<Task>) {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) return { error: 'Unauthorized' }
+  if (!user) return { error: 'Link Neural perdido.' }
 
+  // Busca a tarefa antes de atualizar para comparar estados
   const { data: currentTask, error: currentTaskError } = await supabase
     .from('tasks')
-    .select('id,user_id,team_id,category_id,title,description,status,priority,estimated_minutes,cognitive_load')
+    .select('*')
     .eq('id', id)
     .single()
 
-  if (currentTaskError || !currentTask) {
-    return { error: currentTaskError?.message || 'Task not found' }
-  }
+  if (currentTaskError || !currentTask) return { error: 'Módulo não encontrado no setor.' }
 
   const updateData: Record<string, unknown> = {
     ...data,
     updated_at: new Date().toISOString(),
   }
 
-  if (typeof data.cognitive_load !== 'undefined') {
-    updateData.cognitive_load = normalizeCognitiveLoad(data.cognitive_load)
-  }
-
-  if (data.status === 'done' && currentTask.status !== 'done') {
+  // Regra de Conclusão: Se mudou para DONE agora
+  const isJustCompleted = data.status === 'done' && currentTask.status !== 'done'
+  
+  if (isJustCompleted) {
     updateData.completed_at = new Date().toISOString()
   } else if (data.status && data.status !== 'done') {
     updateData.completed_at = null
   }
 
-  const { data: task, error } = await updateTaskWithCognitiveFallback(supabase, id, updateData)
+  const { data: updatedTask, error } = await supabase
+    .from('tasks')
+    .update(updateData)
+    .eq('id', id)
+    .select(TASK_SELECT)
+    .single()
 
   if (error) return { error: error.message }
 
-  if (currentTask.status !== 'done' && task.status === 'done') {
-    await createSpacedReviewTasks({
-      supabase,
-      sourceTask: {
-        id: currentTask.id,
-        user_id: currentTask.user_id,
-        team_id: currentTask.team_id,
-        category_id: currentTask.category_id,
-        priority: currentTask.priority,
-        title: currentTask.title,
-        description: currentTask.description,
-        estimated_minutes: currentTask.estimated_minutes,
-        cognitive_load: normalizeCognitiveLoad(currentTask.cognitive_load),
-      },
-      completedAtISO: (task.completed_at as string) || new Date().toISOString(),
-    })
+  // Gatilhos Pós-Conclusão (XP e Revisões)
+  if (isJustCompleted) {
+    // 1. Injeta XP na conta do usuário
+    await awardTaskXP(
+      supabase, 
+      currentTask.user_id, 
+      currentTask.cognitive_load || 3, 
+      currentTask.priority || 'medium'
+    )
+
+    // 2. Prepara as sementes de revisão para o futuro
+    await createSpacedReviewTasks(
+      supabase, 
+      currentTask as Task, 
+      (updatedTask.completed_at as string) || new Date().toISOString()
+    )
   }
 
   revalidatePath('/dashboard', 'layout')
-  return { data: task as Task }
+  return { data: updatedTask as Task }
 }
 
 export async function deleteTask(id: string) {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) return { error: 'Unauthorized' }
+  if (!user) return { error: 'Link Neural perdido.' }
 
   const { error } = await supabase.from('tasks').delete().eq('id', id)
 
