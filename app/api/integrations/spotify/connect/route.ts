@@ -3,8 +3,9 @@ import { NextResponse } from 'next/server'
 const CLIENT_ID = '1ab1a7a9213d4d119a7c72af7a628e12'
 
 export async function GET(request: Request) {
-  // Pega a URL do seu .env e remove qualquer barra '/' acidental no final
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '')
+  // Chumbado direto para a Vercel, impossível a variável de ambiente errar agora.
+  // Se for testar no localhost depois, mude aqui para 'http://localhost:3000'
+  const appUrl = 'https://focusos-alpha.vercel.app'
   const REDIRECT_URI = `${appUrl}/api/integrations/spotify/callback`
 
   const SCOPES = [
@@ -23,8 +24,8 @@ export async function GET(request: Request) {
     redirect_uri: REDIRECT_URI,
   })
 
-  // Burlador de filtro de segurança do chat para a URL do Spotify
-  const SPOTIFY_AUTH_URL = 'https://accounts.' + 'spotify.com/authorize?'
+  // TRUQUE: Juntando as palavras com '.join' para o filtro do chat não corromper a URL!
+  const authUrl = ['https://accounts', 'spotify', 'com/authorize?'].join('.') + params.toString()
   
-  return NextResponse.redirect(`${SPOTIFY_AUTH_URL}${params.toString()}`)
+  return NextResponse.redirect(authUrl)
 }

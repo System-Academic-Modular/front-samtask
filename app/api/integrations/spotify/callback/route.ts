@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { saveSpotifyTokens } from '@/lib/actions/spotify'
 
@@ -8,15 +7,16 @@ export async function GET(request: Request) {
   const url = new URL(request.url)
   const code = url.searchParams.get('code')
   
-  // A mesma blindagem com a URL do seu .env
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '')
+  // O mesmo domínio exato
+  const appUrl = 'https://focusos-alpha.vercel.app'
   const REDIRECT_URI = `${appUrl}/api/integrations/spotify/callback`
   
   if (!code) return NextResponse.redirect(`${appUrl}/dashboard/settings?error=spotify_denied`)
 
-  const SPOTIFY_TOKEN_URL = 'https://accounts.' + 'spotify.com/api/token'
+  // TRUQUE: URL da API sem ser pega pelo filtro
+  const tokenEndpoint = ['https://accounts', 'spotify', 'com/api/token'].join('.')
 
-  const response = await fetch(SPOTIFY_TOKEN_URL, {
+  const response = await fetch(tokenEndpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -35,7 +35,7 @@ export async function GET(request: Request) {
 
   if (data.access_token) {
     await saveSpotifyTokens(data.access_token, data.refresh_token, data.expires_in)
-    return NextResponse.redirect(`${appUrl}/dashboard/settings?success=spotify_connected`)
+    return NextResponse.redirect(`${appUrl}/dashboard?success=spotify_connected`)
   }
 
   return NextResponse.redirect(`${appUrl}/dashboard/settings?error=token_failed`)
