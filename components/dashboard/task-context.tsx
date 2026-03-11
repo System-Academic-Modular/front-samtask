@@ -3,28 +3,27 @@
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { setTaskContext } from '@/lib/actions/task-context-action'
-import { normalizeCognitiveLoad } from '@/lib/effort'
+import { normalizarCargaMental } from '@/lib/effort' // Ajustado
 import {
   parseTaskContext,
-  type TaskContext,
+  type TaskContext as SharedTaskContext, // Renomeado para não conflitar com a const
   type TaskContextValue,
 } from '@/lib/task-context-shared'
-import type { CognitiveLoad } from '@/lib/types'
+import type { CargaMental } from '@/lib/types' // Ajustado de CognitiveLoad para CargaMental
 
 type TeamOption = {
   id: string
   name: string
 }
 
-// CORREÇÃO AQUI: Usamos '&' para unir os tipos.
-// Agora TaskContextState tem { type, teamId, value, teams, ... } tudo no mesmo nível.
-type TaskContextState = TaskContext & {
+// Unimos os tipos para que o state tenha tudo no primeiro nível
+type TaskContextState = SharedTaskContext & {
   value: TaskContextValue
   teams: TeamOption[]
-  preferredCognitiveLoad: CognitiveLoad
+  preferredCognitiveLoad: CargaMental
   isPending: boolean
   setValue: (value: TaskContextValue) => void
-  setPreferredCognitiveLoad: (value: CognitiveLoad) => void
+  setPreferredCognitiveLoad: (value: CargaMental) => void
 }
 
 const TaskContext = React.createContext<TaskContextState | undefined>(undefined)
@@ -41,13 +40,14 @@ export function TaskContextProvider({
   const router = useRouter()
   const [value, setValueState] = React.useState<TaskContextValue>(initialValue)
   const [preferredCognitiveLoad, setPreferredCognitiveLoadState] =
-    React.useState<CognitiveLoad>(3)
+    React.useState<CargaMental>(3)
   const [isPending, startTransition] = React.useTransition()
 
+  // Sincroniza carga mental preferida do localStorage
   React.useEffect(() => {
     const storedValue = localStorage.getItem('taskflow-cognitive-load')
     if (!storedValue) return
-    setPreferredCognitiveLoadState(normalizeCognitiveLoad(Number(storedValue)))
+    setPreferredCognitiveLoadState(normalizarCargaMental(Number(storedValue)))
   }, [])
 
   // Validação: Se tentar acessar um time que não existe na lista, volta para pessoal
@@ -58,7 +58,7 @@ export function TaskContextProvider({
     return exists ? value : 'personal'
   }, [value, teams])
 
-  // Sincroniza o estado local se o valor validado mudar
+  // Sincroniza o estado local e atualiza o servidor se o valor validado mudar
   React.useEffect(() => {
     if (validValue !== value) {
       setValueState(validValue)
@@ -79,19 +79,19 @@ export function TaskContextProvider({
     [value, router],
   )
 
-  const setPreferredCognitiveLoad = React.useCallback((nextValue: CognitiveLoad) => {
-    const normalizedValue = normalizeCognitiveLoad(nextValue)
+  const setPreferredCognitiveLoad = React.useCallback((nextValue: CargaMental) => {
+    const normalizedValue = normalizarCargaMental(nextValue)
     setPreferredCognitiveLoadState(normalizedValue)
     localStorage.setItem('taskflow-cognitive-load', String(normalizedValue))
   }, [])
 
   // Parseia 'team:123' para { type: 'team', teamId: '123' }
-  const context = React.useMemo(() => parseTaskContext(validValue), [validValue])
+  const parsedContext = React.useMemo(() => parseTaskContext(validValue), [validValue])
 
   const state = React.useMemo<TaskContextState>(
     () => ({
       value: validValue,
-      ...context, // CORREÇÃO AQUI: Espalhamos o context para expor type e teamId na raiz
+      ...parsedContext, // type e teamId ficam na raiz
       teams,
       preferredCognitiveLoad,
       isPending,
@@ -100,7 +100,7 @@ export function TaskContextProvider({
     }),
     [
       validValue,
-      context,
+      parsedContext,
       teams,
       preferredCognitiveLoad,
       isPending,

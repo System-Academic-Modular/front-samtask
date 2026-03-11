@@ -13,25 +13,28 @@ import {
   Sparkles,
   Waves,
   Zap,
+  CheckCircle2,
+  Brain
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { PlaylistModal } from '@/components/dashboard/playlist-modal'
 import { SpotifyPlayer, type SpotifyPreset } from '@/components/dashboard/spotify-player'
 import { cn } from '@/lib/utils'
+import type { Tarefa } from '@/lib/types'
 
 interface ZenModeProps {
   isOpen: boolean
   onClose: () => void
-  taskTitle?: string
+  task: Tarefa | null
 }
 
-const WORK_DURATION_SECONDS = 25 * 60
-const BREATHING_PROTOCOL_SECONDS = 3 * 60
+const DURACAO_FOCO = 25 * 60
+const PROTOCOLO_RESPIRO = 3 * 60
 
-export function ZenMode({ isOpen, onClose, taskTitle = 'Foco Profundo' }: ZenModeProps) {
+export function ZenMode({ isOpen, onClose, task }: ZenModeProps) {
   const [mounted, setMounted] = useState(false)
-  const [timeLeft, setTimeLeft] = useState(WORK_DURATION_SECONDS)
+  const [timeLeft, setTimeLeft] = useState(DURACAO_FOCO)
   const [isRunning, setIsRunning] = useState(false)
   const [isPlaylistOpen, setIsPlaylistOpen] = useState(false)
   const [audioPreset, setAudioPreset] = useState<SpotifyPreset>('focus')
@@ -44,287 +47,217 @@ export function ZenMode({ isOpen, onClose, taskTitle = 'Foco Profundo' }: ZenMod
     return () => setMounted(false)
   }, [])
 
+  // Timer de Foco
   useEffect(() => {
     if (!isRunning || timeLeft <= 0) return
     const interval = setInterval(() => {
-      setTimeLeft((previous) => {
-        if (previous <= 1) {
-          clearInterval(interval)
-          setIsRunning(false)
-          confetti({
-            particleCount: 140,
-            spread: 100,
-            origin: { y: 0.62 },
-            colors: ['#6366f1', '#0ea5e9', '#10b981'],
-          })
-          toast.success('Sessão finalizada. Excelente constância.')
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          finalizarSessao()
           return 0
         }
-        return previous - 1
+        return prev - 1
       })
     }, 1000)
     return () => clearInterval(interval)
   }, [isRunning, timeLeft])
 
+  // Timer de Respiro
   useEffect(() => {
     if (emergencyLeft <= 0) return
-
     const interval = setInterval(() => {
-      setEmergencyLeft((previous) => {
-        if (previous <= 1) {
-          clearInterval(interval)
+      setEmergencyLeft((prev) => {
+        if (prev <= 1) {
           setAudioPreset('focus')
-          toast.success('Protocolo de respiro concluído. Voltando ao foco.')
+          toast.success('Protocolo de respiro concluído. Retomando clareza.')
           return 0
         }
-        return previous - 1
+        return prev - 1
       })
     }, 1000)
-
     return () => clearInterval(interval)
   }, [emergencyLeft])
 
+  // Atalhos de Teclado
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!isOpen) return
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isOpen || e.target instanceof HTMLInputElement) return
+      
+      const actions: Record<string, () => void> = {
+        Space: () => setIsRunning(p => !p),
+        KeyR: () => { setIsRunning(false); setTimeLeft(DURACAO_FOCO); toast.info('Timer reiniciado.') },
+        KeyM: () => setIsPlaylistOpen(p => !p),
+        KeyB: () => activateBreathingProtocol(),
+        Escape: () => isPlaylistOpen ? setIsPlaylistOpen(false) : onClose()
+      }
 
-      switch (event.code) {
-        case 'Space':
-          event.preventDefault()
-          setIsRunning((previous) => !previous)
-          break
-        case 'KeyR':
-          setIsRunning(false)
-          setTimeLeft(WORK_DURATION_SECONDS)
-          toast.info('Timer reiniciado.')
-          break
-        case 'KeyM':
-          setIsPlaylistOpen((previous) => !previous)
-          break
-        case 'KeyB':
-          activateBreathingProtocol()
-          break
-        case 'Escape':
-          if (isPlaylistOpen) setIsPlaylistOpen(false)
-          else onClose()
-          break
+      if (actions[e.code]) {
+        e.preventDefault()
+        actions[e.code]()
       }
     }
 
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [isOpen, isPlaylistOpen, onClose])
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, isPlaylistOpen])
 
-  const timerLabel = useMemo(() => {
-    const minutes = Math.floor(timeLeft / 60)
-    const seconds = timeLeft % 60
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-  }, [timeLeft])
-
-  const breathingLabel = useMemo(() => {
-    const minutes = Math.floor(emergencyLeft / 60)
-    const seconds = emergencyLeft % 60
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-  }, [emergencyLeft])
-
-  function activateBreathingProtocol() {
-    const fallbackPreset: SpotifyPreset = Math.random() > 0.5 ? 'brown-noise' : 'guided-breathing'
+  const finalizarSessao = () => {
     setIsRunning(false)
-    setAudioPreset(fallbackPreset)
-    setEmergencyLeft(BREATHING_PROTOCOL_SECONDS)
-    toast.info('Protocolo Pânico/Respiro ativado por 3 minutos.', {
-      description:
-        fallbackPreset === 'brown-noise'
-          ? 'Ruído marrom selecionado automaticamente.'
-          : 'Respiração guiada selecionada automaticamente.',
+    confetti({
+      particleCount: 150,
+      spread: 70,
+      origin: { y: 0.6 },
+      colors: ['#8B5CF6', '#22D3EE', '#10B981']
     })
+    toast.success('Sessão concluída. Sua maestria aumentou.')
   }
 
-  if (!isOpen || !mounted) return null
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60)
+    const s = seconds % 60
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+  }
+
+  function activateBreathingProtocol() {
+    setIsRunning(false)
+    setAudioPreset(Math.random() > 0.5 ? 'brown-noise' : 'guided-breathing')
+    setEmergencyLeft(PROTOCOLO_RESPIRO)
+    toast.info('Protocolo de Respiro Ativado', { description: 'Inspirar... Segurar... Expirar...' })
+  }
+
+  if (!isOpen || !mounted || !task) return null
+
+  // Cálculo do progresso para o círculo visual
+  const progressOffset = ((DURACAO_FOCO - timeLeft) / DURACAO_FOCO) * 100
 
   return createPortal(
-    <div
-      className={cn(
-        'fixed inset-0 z-[9999] flex h-[100dvh] flex-col items-center justify-center overflow-hidden text-white',
-        'animate-in fade-in duration-700',
-        isEmergencyBreathing ? 'bg-[#d6e9ff]' : 'bg-[#06080f]',
-      )}
-    >
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div
-          className={cn(
-            'absolute -left-[10%] -top-[20%] h-[70%] w-[70%] rounded-full blur-[120px]',
-            isEmergencyBreathing ? 'bg-sky-300/45' : 'bg-brand-violet/15',
-          )}
-        />
-        <div
-          className={cn(
-            'absolute -bottom-[20%] -right-[10%] h-[60%] w-[60%] rounded-full blur-[120px]',
-            isEmergencyBreathing ? 'bg-cyan-200/45' : 'bg-brand-cyan/10',
-          )}
-        />
+    <div className={cn(
+      'fixed inset-0 z-[9999] flex h-[100dvh] flex-col items-center justify-center overflow-hidden transition-colors duration-1000',
+      isEmergencyBreathing ? 'bg-[#E0F2FE]' : 'bg-[#06080F]'
+    )}>
+      {/* Background Dinâmico */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className={cn(
+          "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[1000px] rounded-full blur-[140px] transition-all duration-1000",
+          isEmergencyBreathing ? "bg-sky-400/20" : isRunning ? "bg-brand-violet/10" : "bg-white/5"
+        )} />
+        <div className="h-full w-full bg-cyber-grid opacity-[0.05]" />
       </div>
 
-      <div className={cn('absolute inset-0', isEmergencyBreathing ? 'opacity-[0.04]' : 'opacity-[0.08]')}>
-        <div className="h-full w-full bg-cyber-grid" />
-      </div>
-
-      <header className="absolute left-6 right-6 top-6 z-50 flex items-center justify-between md:left-10 md:right-10 md:top-10">
-        <div
-          className={cn(
-            'flex items-center gap-3 rounded-2xl border px-4 py-2 backdrop-blur-xl',
-            isEmergencyBreathing
-              ? 'border-sky-400/30 bg-sky-100/20 text-slate-900'
-              : 'border-white/10 bg-white/5 text-white',
-          )}
-        >
-          <Zap className={cn('h-3 w-3', isEmergencyBreathing ? 'text-sky-700' : 'text-brand-violet')} />
-          <span className="text-[10px] font-black uppercase tracking-[0.3em]">
-            {isEmergencyBreathing ? 'Protocolo_Respirar' : 'Protocolo_Zen'}
+      {/* Header Contextual */}
+      <header className="absolute top-10 left-10 right-10 flex justify-between items-center z-20">
+        <div className={cn(
+          "flex items-center gap-4 px-4 py-2 rounded-2xl border backdrop-blur-md transition-colors",
+          isEmergencyBreathing ? "bg-white/40 border-sky-200 text-sky-900" : "bg-white/5 border-white/10 text-white/70"
+        )}>
+          <Zap className={cn("w-4 h-4", isEmergencyBreathing ? "text-sky-600" : "text-brand-cyan")} />
+          <span className="text-[10px] font-black tracking-[0.4em] uppercase">
+            {isEmergencyBreathing ? 'Deep_Breathing' : 'Deep_Work_Protocol'}
           </span>
         </div>
 
-        <Button
-          variant="ghost"
-          onClick={onClose}
-          className={cn(
-            'group transition-all',
-            isEmergencyBreathing ? 'text-slate-700 hover:bg-sky-100/30' : 'text-white/40 hover:bg-white/5 hover:text-white',
-          )}
-        >
-          <Minimize2 className="mr-2 h-5 w-5 group-hover:scale-110" />
-          <span className="hidden text-xs font-bold uppercase tracking-widest md:inline">Esc sair</span>
+        <Button variant="ghost" onClick={onClose} className={cn(
+          "gap-2 font-bold text-xs uppercase tracking-widest",
+          isEmergencyBreathing ? "text-sky-900 hover:bg-sky-200" : "text-white/40 hover:text-white"
+        )}>
+          <Minimize2 className="w-5 h-5" />
+          Esc Minimizar
         </Button>
       </header>
 
-      <main className="relative z-10 flex w-full max-w-5xl flex-col items-center justify-center px-6 text-center">
-        <div
-          className={cn(
-            'mb-6 flex items-center gap-2 rounded-full border px-6 py-2 backdrop-blur-xl md:mb-10',
-            isEmergencyBreathing
-              ? 'border-sky-300/45 bg-sky-100/30 text-slate-900'
-              : 'border-brand-violet/25 bg-brand-violet/10 text-white',
-          )}
-        >
-          <Sparkles className={cn('h-4 w-4', isEmergencyBreathing ? 'text-sky-700' : 'text-brand-cyan')} />
-          <span className="text-xs font-bold uppercase tracking-[0.18em] md:text-sm">{taskTitle}</span>
+      {/* Main Focus Area */}
+      <main className="relative z-10 flex flex-col items-center max-w-4xl w-full px-6">
+        {/* Task Badge */}
+        <div className={cn(
+          "mb-8 flex items-center gap-3 px-6 py-2 rounded-full border transition-all",
+          isEmergencyBreathing ? "bg-sky-100 border-sky-300 text-sky-900" : "bg-brand-violet/10 border-brand-violet/20 text-white"
+        )}>
+          <Brain className="w-4 h-4" />
+          <span className="text-sm font-black italic uppercase tracking-wider">{task.titulo}</span>
+          <div className="w-px h-4 bg-current/20 mx-2" />
+          <span className="text-xs font-bold opacity-70">Carga {task.carga_mental}</span>
         </div>
 
-        <h1
-          className={cn(
-            'mb-8 select-none text-[28vw] font-black leading-none tracking-tighter tabular-nums md:mb-12 md:text-[200px]',
-            isEmergencyBreathing ? 'text-slate-800' : 'text-white',
-          )}
-          style={{
-            textShadow: isEmergencyBreathing
-              ? '0 0 32px rgba(125, 211, 252, 0.35)'
-              : isRunning
-                ? '0 0 56px hsl(var(--brand-primary-hsl) / 0.45)'
-                : '0 0 22px rgba(255,255,255,0.08)',
-          }}
-        >
-          {timerLabel}
-        </h1>
+        {/* Timer Gigante com Circle Progress */}
+        <div className="relative group">
+          <svg className="absolute -inset-20 w-[calc(100%+160px)] h-[calc(100%+160px)] -rotate-90 hidden md:block">
+            <circle
+              cx="50%" cy="50%" r="48%"
+              className={cn("fill-none stroke-[1px] transition-colors duration-1000", isEmergencyBreathing ? "stroke-sky-200" : "stroke-white/5")}
+            />
+            <circle
+              cx="50%" cy="50%" r="48%"
+              className={cn("fill-none stroke-[2px] transition-all duration-300", isEmergencyBreathing ? "stroke-sky-600" : "stroke-brand-cyan")}
+              strokeDasharray="100 100"
+              strokeDashoffset={100 - progressOffset}
+              strokeLinecap="round"
+            />
+          </svg>
+
+          <h1 className={cn(
+            "text-[30vw] md:text-[220px] font-[1000] tracking-tighter tabular-nums leading-none select-none transition-all duration-1000",
+            isEmergencyBreathing ? "text-sky-900" : isRunning ? "text-white" : "text-white/20"
+          )}>
+            {formatTime(timeLeft)}
+          </h1>
+        </div>
 
         {isEmergencyBreathing && (
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-sky-300/45 bg-sky-100/35 px-4 py-2 text-sm font-semibold text-slate-800">
-            <Waves className="h-4 w-4" />
-            Modo Respiro ativo • {breathingLabel}
+          <div className="mt-4 flex items-center gap-3 animate-bounce text-sky-700 font-bold uppercase tracking-widest text-sm">
+            <Waves className="w-5 h-5" />
+            Modo Respiro: {formatTime(emergencyLeft)}
           </div>
         )}
 
-        <div className="mb-12 flex items-center gap-4 md:mb-16 md:gap-8">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => {
-              setIsRunning(false)
-              setTimeLeft(WORK_DURATION_SECONDS)
-            }}
-            className={cn(
-              'h-14 w-14 rounded-2xl md:h-16 md:w-16',
-              isEmergencyBreathing
-                ? 'border-sky-300/45 bg-sky-100/40 text-slate-700 hover:bg-sky-100/55'
-                : 'border-white/10 bg-white/5 text-white/65 hover:bg-white/10 hover:text-white',
-            )}
-            title="Reiniciar (R)"
-          >
-            <RotateCcw className="h-6 w-6" />
+        {/* Controls */}
+        <div className="mt-16 flex items-center gap-10">
+          <Button variant="outline" size="icon" onClick={() => { setIsRunning(false); setTimeLeft(DURACAO_FOCO); }} 
+            className="h-16 w-16 rounded-2xl border-white/10 bg-white/5 hover:bg-white/10 text-white/50 hover:text-white">
+            <RotateCcw className="w-6 h-6" />
           </Button>
 
-          <Button
-            onClick={() => setIsRunning((previous) => !previous)}
+          <Button onClick={() => setIsRunning(!isRunning)} 
             className={cn(
-              'h-24 w-24 rounded-[32px] shadow-2xl transition-all active:scale-95 md:h-28 md:w-28',
-              isEmergencyBreathing
-                ? 'bg-sky-600 text-white'
-                : isRunning
-                  ? 'bg-white text-black'
-                  : 'bg-brand-violet text-white shadow-neon-violet',
-            )}
-            title="Play/Pause (Espaço)"
-          >
-            {isRunning ? (
-              <Pause className="h-10 w-10 fill-current md:h-12 md:w-12" />
-            ) : (
-              <Play className="ml-1 h-10 w-10 fill-current md:h-12 md:w-12" />
-            )}
+              "h-28 w-28 rounded-[40px] shadow-2xl transition-all hover:scale-105 active:scale-95",
+              isEmergencyBreathing ? "bg-sky-600 text-white" : isRunning ? "bg-white text-black" : "bg-brand-violet text-white"
+            )}>
+            {isRunning ? <Pause className="w-12 h-12 fill-current" /> : <Play className="w-12 h-12 fill-current ml-2" />}
           </Button>
 
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setIsPlaylistOpen(true)}
-            className={cn(
-              'h-14 w-14 rounded-2xl md:h-16 md:w-16',
-              isEmergencyBreathing
-                ? 'border-sky-300/45 bg-sky-100/40 text-slate-700 hover:bg-sky-100/55'
-                : 'border-white/10 bg-white/5 text-white/65 hover:bg-white/10 hover:text-white',
-            )}
-            title="Playlists (M)"
-          >
-            <Music2 className="h-6 w-6" />
+          <Button variant="outline" size="icon" onClick={() => setIsPlaylistOpen(true)}
+            className="h-16 w-16 rounded-2xl border-white/10 bg-white/5 hover:bg-white/10 text-white/50 hover:text-white">
+            <Music2 className="w-6 h-6" />
           </Button>
         </div>
 
-        <div className="mb-6 w-full max-w-sm">
+        <div className="mt-12 w-full max-w-sm opacity-50 hover:opacity-100 transition-opacity">
           <SpotifyPlayer preset={audioPreset} />
         </div>
 
-        <Button
-          onClick={activateBreathingProtocol}
-          className={cn(
-            'rounded-full px-6 py-2 text-sm font-semibold tracking-wide',
-            isEmergencyBreathing
-              ? 'bg-slate-800 text-sky-100 hover:bg-slate-700'
-              : 'bg-sky-500/80 text-white hover:bg-sky-500',
-          )}
-        >
-          <AlertTriangle className="mr-2 h-4 w-4" />
-          Botão Pânico / Respiro (B)
-        </Button>
+        <button onClick={activateBreathingProtocol} className={cn(
+          "mt-10 flex items-center gap-2 px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all",
+          isEmergencyBreathing ? "bg-sky-900 text-white scale-90 opacity-50" : "bg-sky-500/20 text-sky-400 border border-sky-500/30 hover:bg-sky-500/30"
+        )}>
+          <AlertTriangle className="w-4 h-4" />
+          Panic Button / Reset Mental (B)
+        </button>
       </main>
 
-      <PlaylistModal isOpen={isPlaylistOpen} onClose={() => setIsPlaylistOpen(false)} />
-
-      <footer
-        className={cn(
-          'absolute bottom-10 hidden w-full justify-between px-12 text-[10px] font-black uppercase tracking-[0.5em] sm:flex',
-          isEmergencyBreathing ? 'text-slate-700/70' : 'text-white/30',
-        )}
-      >
-        <div className="flex flex-col gap-2 text-left">
-          <span>[ESPAÇO] PLAY/PAUSE</span>
-          <span>[R] REINICIAR TIMER</span>
+      {/* Footer Shortcuts */}
+      <footer className={cn(
+        "absolute bottom-10 left-10 right-10 flex justify-between text-[10px] font-black tracking-[0.4em] transition-colors",
+        isEmergencyBreathing ? "text-sky-900/40" : "text-white/20"
+      )}>
+        <div className="flex gap-10">
+          <span>[SPACE] PLAY/PAUSE</span>
+          <span>[R] REINICIAR</span>
           <span>[M] PLAYLISTS</span>
-          <span>[B] PÂNICO/RESPIRO</span>
         </div>
-        <div className="text-right">
-          <span>ZEN ENGINE v3.1</span>
-        </div>
+        <span>FOCUS_ENGINE_V3</span>
       </footer>
+
+      <PlaylistModal isOpen={isPlaylistOpen} onClose={() => setIsPlaylistOpen(false)} />
     </div>,
-    document.body,
+    document.body
   )
 }

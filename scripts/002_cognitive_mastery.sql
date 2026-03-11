@@ -182,10 +182,10 @@ begin
 end;
 $$;
 
-drop trigger if exists trg_mastery_score_on_pomodoro on public.pomodoro_sessions;
+drop trigger if exists trg_mastery_score_on_pomodoro on public.sessoes_pomodoro;
 
 create trigger trg_mastery_score_on_pomodoro
-  after insert on public.pomodoro_sessions
+  after insert on public.sessoes_pomodoro
   for each row
   execute function public.bump_mastery_score_from_pomodoro();
 

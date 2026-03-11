@@ -29,30 +29,30 @@ interface TaskItemProps {
 }
 
 const priorityColors = {
-  low: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-  medium: 'bg-brand-cyan/10 text-brand-cyan border-brand-cyan/20',
-  high: 'bg-brand-amber/10 text-brand-amber border-brand-amber/20',
-  urgent: 'bg-red-500/10 text-red-500 border-red-500/20 animate-pulse',
+  baixa: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+  media: 'bg-brand-cyan/10 text-brand-cyan border-brand-cyan/20',
+  alta: 'bg-brand-amber/10 text-brand-amber border-brand-amber/20',
+  urgente: 'bg-red-500/10 text-red-500 border-red-500/20 animate-pulse',
 }
 
 const priorityLabels = {
-  low: 'Baixa',
-  medium: 'Média',
-  high: 'Alta',
-  urgent: 'Urgente',
+  baixa: 'Baixa',
+  media: 'Média',
+  alta: 'Alta',
+  urgente: 'Urgente',
 }
 
 export function TaskItem({ task, onEdit, showCompleted }: TaskItemProps) {
   const [isPending, startTransition] = useTransition()
   
-  const isCompleted = task.status === 'done'
+  const isCompleted = task.status === 'concluida'
   
   // 1. Scanner de Revisão
-  const isReview = task.title.toLowerCase().includes('revisão') || task.title.toLowerCase().includes('review')
+  const isReview = task.titulo.toLowerCase().includes('revisão') || task.titulo.toLowerCase().includes('review')
 
   function handleToggleComplete() {
     startTransition(async () => {
-      const newStatus = isCompleted ? 'todo' : 'done'
+      const newStatus = isCompleted ? 'pendente' : 'concluida'
       const result = await updateTask(task.id, { status: newStatus })
       
       if (result.error) {
@@ -60,12 +60,12 @@ export function TaskItem({ task, onEdit, showCompleted }: TaskItemProps) {
         return
       }
 
-      if (newStatus === 'done') {
+      if (newStatus === 'concluida') {
         confetti({
           particleCount: 40,
           spread: 70,
           origin: { y: 0.8 },
-          colors: [task.category?.color || '#8b5cf6', '#06b6d4', '#10b981'],
+          colors: [task.categoria?.cor || '#8b5cf6', '#06b6d4', '#10b981'],
         })
         toast.success(isReview ? 'Revisão concluída!' : 'Missão cumprida!', {
           description: isReview ? 'Conhecimento fixado com sucesso.' : 'Ótimo trabalho! Foco no próximo objetivo.',
@@ -85,7 +85,7 @@ export function TaskItem({ task, onEdit, showCompleted }: TaskItemProps) {
     })
   }
 
-  const dueDate = task.due_date ? new Date(task.due_date) : null
+  const dueDate = task.data_vencimento ? new Date(task.data_vencimento) : null
   const isOverdue = dueDate && dueDate < new Date() && !isCompleted
 
   const getInitials = (name: string | null) => {
@@ -123,18 +123,15 @@ export function TaskItem({ task, onEdit, showCompleted }: TaskItemProps) {
           : "bg-card/40 border-white/5 hover:border-white/20 hover:bg-white/[0.03] backdrop-blur-sm"
       )}
       style={{
-        // Injeção dinâmica da cor da categoria para o hover
-        '--hover-glow': task.category?.color || 'var(--brand-violet)'
+        '--hover-glow': task.categoria?.cor || 'var(--brand-violet)'
       } as React.CSSProperties}
     >
       
-      {/* Barra de progresso lateral colorida */}
       <div className={cn(
         "absolute left-0 top-0 bottom-0 w-1 transition-all",
         isCompleted ? "bg-brand-emerald" : "bg-transparent group-hover:bg-[var(--hover-glow)]"
       )} />
 
-      {/* Selo Tático de Revisão */}
       {isReview && !isCompleted && (
         <div className="absolute top-0 right-0 bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-bl-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 border-b border-l border-emerald-500/20 backdrop-blur-md">
           <RefreshCw className="w-3 h-3 animate-spin-slow" /> Revisão
@@ -161,32 +158,31 @@ export function TaskItem({ task, onEdit, showCompleted }: TaskItemProps) {
                   'font-semibold text-base transition-all duration-300',
                   isCompleted ? 'text-muted-foreground line-through' : 'text-white/90 group-hover:text-white transition-colors'
                 )}>
-                  {task.title}
+                  {task.titulo}
                 </h3>
                 
-                {task.description && (
+                {task.descricao && (
                   <p className={cn(
                     'text-sm text-muted-foreground line-clamp-2 leading-relaxed transition-opacity mt-1',
                     isCompleted && 'opacity-50'
                   )}>
-                    {task.description}
+                    {task.descricao}
                   </p>
                 )}
 
-                {/* Badges e Informações */}
                 <div className="flex flex-wrap items-center gap-2 mt-3">
-                  <Badge variant="outline" className={cn("text-[9px] font-bold uppercase tracking-wider h-5", priorityColors[task.priority])}>
-                    {priorityLabels[task.priority]}
+                  <Badge variant="outline" className={cn("text-[9px] font-bold uppercase tracking-wider h-5", priorityColors[task.prioridade])}>
+                    {priorityLabels[task.prioridade]}
                   </Badge>
 
-                  {task.category && (
+                  {task.categoria && (
                     <Badge 
                       variant="outline"
                       className="text-[10px] h-5 bg-black/20 backdrop-blur-sm transition-colors group-hover:bg-white/5"
-                      style={{ borderColor: `${task.category.color}40`, color: task.category.color }}
+                      style={{ borderColor: `${task.categoria.cor}40`, color: task.categoria.cor }}
                     >
-                      <div className="w-1.5 h-1.5 rounded-full mr-1.5" style={{ backgroundColor: task.category.color }} />
-                      {task.category.name}
+                      <div className="w-1.5 h-1.5 rounded-full mr-1.5" style={{ backgroundColor: task.categoria.cor }} />
+                      {task.categoria.nome}
                     </Badge>
                   )}
 
@@ -202,7 +198,6 @@ export function TaskItem({ task, onEdit, showCompleted }: TaskItemProps) {
                 </div>
               </div>
 
-              {/* Menu de Ações (Dropdown) */}
               <div className="flex flex-col items-end gap-2 relative z-10">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -221,13 +216,12 @@ export function TaskItem({ task, onEdit, showCompleted }: TaskItemProps) {
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                {/* Avatar do Responsável */}
-                {task.assignee && (
-                  <div className="flex items-center gap-2 mt-2 group/assignee cursor-pointer" title={`Responsável: ${task.assignee.full_name}`}>
+                {task.atribuido && (
+                  <div className="flex items-center gap-2 mt-2 group/assignee cursor-pointer" title={`Responsável: ${task.atribuido.nome_completo}`}>
                     <Avatar className="h-6 w-6 border border-white/10 ring-2 ring-transparent group-hover/assignee:ring-brand-violet/30 transition-all shadow-sm">
-                      <AvatarImage src={task.assignee.avatar_url || ''} />
+                      <AvatarImage src={task.atribuido.avatar_url || ''} />
                       <AvatarFallback className="text-[9px] bg-brand-violet/20 text-brand-violet font-bold">
-                        {getInitials(task.assignee.full_name)}
+                        {getInitials(task.atribuido.nome_completo)}
                       </AvatarFallback>
                     </Avatar>
                   </div>
@@ -235,21 +229,20 @@ export function TaskItem({ task, onEdit, showCompleted }: TaskItemProps) {
               </div>
             </div>
             
-            {/* FOOTER TÁTICO: Carga Mental e Ação Rápida */}
             <div className="flex items-center justify-between mt-4 pt-3 border-t border-white/5">
               <div className="flex items-center gap-2">
                 <Zap className={cn("w-3.5 h-3.5", isReview ? "text-emerald-500" : "text-sky-400")} />
-                {renderCognitiveLoad(task.cognitive_load)}
+                {renderCognitiveLoad(task.carga_mental)}
                 <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest ml-1 hidden sm:inline">
-                  {isReview ? 'Carga Leve' : `Nível ${task.cognitive_load || 1}`}
+                  {isReview ? 'Carga Leve' : `Nível ${task.carga_mental || 1}`}
                 </span>
               </div>
 
               {!isCompleted && (
                 <div className="flex items-center gap-2">
-                  {task.estimated_minutes && (
+                  {task.minutos_estimados && (
                     <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold flex items-center gap-1 bg-white/5 px-2 py-1 rounded-md border border-white/5">
-                      <Clock className="w-3 h-3 text-brand-cyan" /> {task.estimated_minutes}m
+                      <Clock className="w-3 h-3 text-brand-cyan" /> {task.minutos_estimados}m
                     </span>
                   )}
                   <Button 

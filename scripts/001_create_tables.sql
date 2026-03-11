@@ -123,8 +123,8 @@ create policy "task_tags_delete_own" on public.task_tags for delete using (
   exists (select 1 from public.tasks where tasks.id = task_tags.task_id and tasks.user_id = auth.uid())
 );
 
--- Create pomodoro_sessions table
-create table if not exists public.pomodoro_sessions (
+-- Create sessoes_pomodoro table
+create table if not exists public.sessoes_pomodoro (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   task_id uuid references public.tasks(id) on delete set null,
@@ -133,10 +133,10 @@ create table if not exists public.pomodoro_sessions (
   completed_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
-alter table public.pomodoro_sessions enable row level security;
+alter table public.sessoes_pomodoro enable row level security;
 
-create policy "pomodoro_select_own" on public.pomodoro_sessions for select using (auth.uid() = user_id);
-create policy "pomodoro_insert_own" on public.pomodoro_sessions for insert with check (auth.uid() = user_id);
+create policy "pomodoro_select_own" on public.sessoes_pomodoro for select using (auth.uid() = user_id);
+create policy "pomodoro_insert_own" on public.sessoes_pomodoro for insert with check (auth.uid() = user_id);
 
 -- Create emotional_checkins table
 create table if not exists public.emotional_checkins (
@@ -161,5 +161,5 @@ create index if not exists idx_tasks_category_id on public.tasks(category_id);
 create index if not exists idx_tasks_parent_id on public.tasks(parent_id);
 create index if not exists idx_categories_user_id on public.categories(user_id);
 create index if not exists idx_tags_user_id on public.tags(user_id);
-create index if not exists idx_pomodoro_user_id on public.pomodoro_sessions(user_id);
+create index if not exists idx_pomodoro_user_id on public.sessoes_pomodoro(user_id);
 create index if not exists idx_checkins_user_id on public.emotional_checkins(user_id);

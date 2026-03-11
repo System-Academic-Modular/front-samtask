@@ -5,7 +5,6 @@ import { format, isPast, isToday, isTomorrow, startOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
   AlertCircle,
-  ArrowRight,
   Brain,
   Calendar as CalendarIcon,
   CheckCircle2,
@@ -14,13 +13,13 @@ import {
   Loader2,
   MoreHorizontal,
   Target,
+  Zap,
 } from 'lucide-react'
 import confetti from 'canvas-confetti'
 import { toast } from 'sonner'
 import { updateTask } from '@/lib/actions/tasks'
 import { TaskEditDialog } from '@/components/dashboard/task-edit-dialog'
 import { ZenMode } from '@/components/dashboard/zen-mode'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -29,253 +28,201 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
-import type { Category, Task } from '@/lib/types'
+import type { Category, Task, StatusTarefa } from '@/lib/types'
 
 interface TimelineViewProps {
   tasks: Task[]
   categories?: Category[]
 }
 
-function getStatusConfig(task: Task) {
-  if (task.status === 'done') {
-    return {
-      icon: CheckCircle2,
-      colorClass: 'text-emerald-400',
-      cardClass: 'border-emerald-500/20 bg-emerald-500/[0.08]',
-    }
-  }
-
-  if (task.priority === 'urgent') {
-    return {
-      icon: AlertCircle,
-      colorClass: 'text-rose-400',
-      cardClass: 'border-rose-500/20 bg-rose-500/[0.08]',
-    }
-  }
-
-  if (task.status === 'in_progress') {
-    return {
-      icon: Clock,
-      colorClass: 'text-brand-violet',
-      cardClass: 'border-brand-violet/20 bg-brand-violet/[0.08]',
-    }
-  }
-
-  return {
-    icon: Circle,
-    colorClass: 'text-muted-foreground',
-    cardClass: 'border-white/10 bg-white/[0.02]',
-  }
-}
-
-function humanDueDate(dateString: string | null) {
-  if (!dateString) return 'Sem data'
-
-  const date = new Date(dateString)
-  if (isToday(date)) return 'Hoje'
-  if (isTomorrow(date)) return 'Amanhã'
-  if (isPast(startOfDay(date))) return 'Atrasada'
-  return format(date, "dd 'de' MMM", { locale: ptBR })
-}
-
-function cognitiveLoadLabel(cognitiveLoad: number) {
-  if (cognitiveLoad <= 1) return 'Leve'
-  if (cognitiveLoad >= 5) return 'Máxima'
-  if (cognitiveLoad >= 4) return 'Alta'
-  if (cognitiveLoad === 3) return 'Moderada'
-  return 'Baixa'
+// Mapeamento visual baseado no seu StatusTarefa literal
+const ESTILOS_STATUS = {
+  concluida: { icon: CheckCircle2, cor: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+  urgente: { icon: AlertCircle, cor: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20' }, // fallback para prioridade
+  em_progresso: { icon: Zap, cor: 'text-brand-cyan', bg: 'bg-brand-cyan/10', border: 'border-brand-cyan/20' },
+  pendente: { icon: Circle, cor: 'text-muted-foreground', bg: 'bg-white/5', border: 'border-white/10' },
+  revisao: { icon: Clock, cor: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
 }
 
 export function TimelineView({ tasks, categories = [] }: TimelineViewProps) {
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [zenTask, setZenTask] = useState<Task | null>(null)
-  const [processingTaskId, setProcessingTaskId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [idsOtimistas, setIdsOtimistas] = useState<string[]>([])
 
-  const orderedTasks = useMemo(
-    () =>
-      [...tasks].sort((a, b) => {
-        const aDue = a.due_date ? new Date(a.due_date).getTime() : Number.MAX_SAFE_INTEGER
-        const bDue = b.due_date ? new Date(b.due_date).getTime() : Number.MAX_SAFE_INTEGER
-        if (aDue !== bDue) return aDue - bDue
-        return (a.position ?? 0) - (b.position ?? 0)
-      }),
-    [tasks],
-  )
+  const tarefasOrdenadas = useMemo(() => {
+    return [...tasks].sort((a, b) => {
+      const aConcluida = a.status === 'concluida' || idsOtimistas.includes(a.id)
+      const bConcluida = b.status === 'concluida' || idsOtimistas.includes(b.id)
+      
+      if (aConcluida !== bConcluida) return aConcluida ? 1 : -1
+      
+      const aData = a.data_vencimento ? new Date(a.data_vencimento).getTime() : Infinity
+      const bData = b.data_vencimento ? new Date(b.data_vencimento).getTime() : Infinity
+      return aData - bData
+    })
+  }, [tasks, idsOtimistas])
 
-  const onQuickComplete = (event: React.MouseEvent, task: Task) => {
-    event.stopPropagation()
-    if (task.status === 'done' || isPending) return
+  const concluirTarefa = (e: React.MouseEvent, tarefa: Task) => {
+    e.stopPropagation()
+    if (tarefa.status === 'concluida' || isPending) return
 
-    setProcessingTaskId(task.id)
+    setIdsOtimistas(prev => [...prev, tarefa.id])
+    
     startTransition(async () => {
-      const result = await updateTask(task.id, { status: 'done' })
-      if (result.error) {
-        toast.error('Não foi possível concluir a tarefa.', {
-          description: result.error,
-        })
+      // Usando o literal 'concluida' conforme seu types.ts
+      const result = await updateTask(tarefa.id, { status: 'concluida' as StatusTarefa })
+      
+      if (result?.error) {
+        setIdsOtimistas(prev => prev.filter(id => id !== tarefa.id))
+        toast.error('Erro na sincronização', { description: result.error })
       } else {
         confetti({
-          particleCount: 50,
-          spread: 65,
-          origin: { y: 0.8 },
-          colors: ['#1d4ed8', '#10b981', '#60a5fa'],
+          particleCount: 40,
+          spread: 70,
+          origin: { x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight },
+          colors: ['#8B5CF6', '#22D3EE']
         })
-        toast.success('Tarefa concluída e revisões automáticas agendadas.')
+        toast.success('Missão cumprida!')
       }
-      setProcessingTaskId(null)
     })
   }
 
   return (
-    <div className="space-y-4 py-2">
-      {orderedTasks.map((task, index) => {
-        const statusConfig = getStatusConfig(task)
-        const StatusIcon = statusConfig.icon
-        const isProcessing = processingTaskId === task.id
-        const isLate =
-          !!task.due_date &&
-          isPast(startOfDay(new Date(task.due_date))) &&
-          task.status !== 'done'
+    <div className="relative space-y-3 pb-20">
+      {/* Linha guia da Timeline */}
+      <div className="absolute left-9 top-4 bottom-4 w-px bg-gradient-to-b from-brand-violet/30 via-white/5 to-transparent" />
+
+      {tarefasOrdenadas.map((tarefa, index) => {
+        const concluida = tarefa.status === 'concluida' || idsOtimistas.includes(tarefa.id)
+        
+        // Define o estilo visual baseado no status ou prioridade
+        let estilo = ESTILOS_STATUS.pendente
+        if (concluida) estilo = ESTILOS_STATUS.concluida
+        else if (tarefa.prioridade === 'urgente') estilo = ESTILOS_STATUS.urgente
+        else if (tarefa.status === 'em_progresso') estilo = ESTILOS_STATUS.em_progresso
+        else if (tarefa.status === 'revisao') estilo = ESTILOS_STATUS.revisao
+
+        const IconeStatus = estilo.icon
+        const atrasada = tarefa.data_vencimento && isPast(startOfDay(new Date(tarefa.data_vencimento))) && !concluida
 
         return (
           <div
-            key={task.id}
-            className="group relative rounded-2xl border border-white/10 bg-card/50 p-4 backdrop-blur-md transition-all hover:border-white/20 hover:bg-card/70"
-            style={{ animationDelay: `${index * 60}ms` }}
-            onClick={() => setEditingTask(task)}
+            key={tarefa.id}
+            onClick={() => setEditingTask(tarefa)}
+            className={cn(
+              "group relative flex items-start gap-4 p-4 rounded-2xl border transition-all duration-300 cursor-pointer",
+              estilo.border,
+              concluida ? "opacity-50 grayscale-[0.8] bg-white/[0.02]" : "bg-card/40 backdrop-blur-md hover:bg-card/60"
+            )}
+            style={{ animationDelay: `${index * 50}ms` }}
           >
-            <div className="flex items-start gap-4">
-              <button
-                onClick={(event) => onQuickComplete(event, task)}
-                disabled={task.status === 'done' || isPending}
-                title={task.status === 'done' ? 'Concluída' : 'Marcar como concluída'}
-                className={cn(
-                  'mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border bg-black/30 transition-transform',
-                  statusConfig.colorClass,
-                  statusConfig.cardClass,
-                  task.status !== 'done' && 'hover:scale-105',
-                )}
-              >
-                {isProcessing ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <StatusIcon className="h-5 w-5" />
-                )}
-              </button>
+            {/* Botão de Status (Checkbox) */}
+            <button
+              onClick={(e) => concluirTarefa(e, tarefa)}
+              disabled={concluida || isPending}
+              className={cn(
+                "relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-all shadow-lg",
+                estilo.bg, estilo.cor, estilo.border,
+                !concluida && "hover:scale-110 active:scale-95"
+              )}
+            >
+              {isPending && idsOtimistas.includes(tarefa.id) ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <IconeStatus className={cn("h-5 w-5", concluida && "fill-current")} />
+              )}
+            </button>
 
-              <div className="min-w-0 flex-1 space-y-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  {task.category && (
-                    <Badge
-                      variant="outline"
-                      style={{ borderColor: `${task.category.color}80`, color: task.category.color }}
-                      className="bg-black/30"
-                    >
-                      {task.category.name}
-                    </Badge>
-                  )}
-
-                  <span
-                    className={cn(
-                      'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs',
-                      isLate
-                        ? 'border-rose-400/30 bg-rose-500/10 text-rose-300'
-                        : 'border-white/10 bg-white/[0.03] text-muted-foreground',
-                    )}
+            {/* Conteúdo da Tarefa */}
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                {tarefa.categoria && (
+                  <span 
+                    className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border"
+                    style={{ 
+                      color: tarefa.categoria.cor, 
+                      borderColor: `${tarefa.categoria.cor}40`, 
+                      backgroundColor: `${tarefa.categoria.cor}10` 
+                    }}
                   >
+                    {tarefa.categoria.nome}
+                  </span>
+                )}
+                
+                {tarefa.data_vencimento && (
+                  <span className={cn(
+                    "flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider",
+                    atrasada ? "text-rose-400" : "text-muted-foreground"
+                  )}>
                     <CalendarIcon className="h-3 w-3" />
-                    {humanDueDate(task.due_date)}
+                    {isToday(new Date(tarefa.data_vencimento)) ? "Hoje" : 
+                     isTomorrow(new Date(tarefa.data_vencimento)) ? "Amanhã" :
+                     format(new Date(tarefa.data_vencimento), "dd 'de' MMM", { locale: ptBR })}
                   </span>
-
-                  <span className="inline-flex items-center gap-1 rounded-full border border-sky-400/20 bg-sky-500/10 px-2 py-0.5 text-xs text-sky-300">
-                    <Brain className="h-3 w-3" />
-                    Carga {task.cognitive_load} · {cognitiveLoadLabel(task.cognitive_load)}
-                  </span>
-                </div>
-
-                <div className="space-y-1">
-                  <h3
-                    className={cn(
-                      'text-base font-semibold text-white',
-                      task.status === 'done' && 'text-muted-foreground line-through',
-                    )}
-                  >
-                    {task.title}
-                  </h3>
-                  {task.description && (
-                    <p className="line-clamp-2 text-sm text-muted-foreground">{task.description}</p>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between border-t border-white/5 pt-2">
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    {task.estimated_minutes ? (
-                      <span className="inline-flex items-center gap-1">
-                        <Clock className="h-3 w-3 text-sky-400" />
-                        {task.estimated_minutes} min estimados
-                      </span>
-                    ) : (
-                      <span>Sem estimativa</span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {task.status !== 'done' && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          setZenTask(task)
-                        }}
-                        className="h-7 rounded-full border border-white/10 px-3 text-xs text-sky-300 hover:bg-sky-500/10 hover:text-sky-200"
-                      >
-                        <Target className="mr-1.5 h-3 w-3" />
-                        Focar
-                      </Button>
-                    )}
-
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(event) => event.stopPropagation()}
-                          className="h-8 w-8 text-muted-foreground hover:bg-white/10 hover:text-white"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="border-white/10 bg-[#12161f]">
-                        <DropdownMenuItem onClick={() => setEditingTask(task)}>
-                          Editar tarefa
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-
-                    <span className="hidden items-center gap-1 rounded-full bg-white/5 px-2 py-1 text-xs text-muted-foreground md:inline-flex">
-                      Detalhes <ArrowRight className="h-3 w-3" />
-                    </span>
-                  </div>
-                </div>
+                )}
               </div>
+
+              <h3 className={cn(
+                "text-base font-bold tracking-tight",
+                concluida && "line-through text-muted-foreground"
+              )}>
+                {tarefa.titulo}
+              </h3>
+
+              <div className="flex items-center gap-4 mt-2">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-cyan-400/80 bg-cyan-400/5 px-2 py-0.5 rounded-full border border-cyan-400/10">
+                  <Brain className="h-3 w-3" />
+                  <span>Carga {tarefa.carga_mental}</span>
+                </div>
+                
+                {tarefa.minutos_estimados && (
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <Clock className="h-3 w-3" />
+                    <span>{tarefa.minutos_estimados}m</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Ações Laterais */}
+            <div className="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 hover:bg-brand-cyan/10 hover:text-brand-cyan"
+                onClick={(e) => { e.stopPropagation(); setZenTask(tarefa); }}
+              >
+                <Target className="h-4 w-4" />
+              </Button>
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={e => e.stopPropagation()}>
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48 bg-[#0c0c0e] border-white/10">
+                  <DropdownMenuItem onClick={() => setEditingTask(tarefa)}>Editar</DropdownMenuItem>
+                  <DropdownMenuItem className="text-rose-400">Excluir</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         )
       })}
 
       <TaskEditDialog
-        open={Boolean(editingTask)}
-        onOpenChange={(open) => !open && setEditingTask(null)}
+        open={!!editingTask}
+        onOpenChange={(o) => !o && setEditingTask(null)}
         task={editingTask}
         categories={categories}
       />
 
       <ZenMode
-        isOpen={Boolean(zenTask)}
+        isOpen={!!zenTask}
         onClose={() => setZenTask(null)}
-        taskTitle={zenTask?.title}
+        task={zenTask}
       />
     </div>
   )

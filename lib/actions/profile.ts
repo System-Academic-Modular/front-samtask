@@ -3,12 +3,12 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 
+// Mapeamento exato para as colunas da nossa nova tabela 'perfis'
 type SupportedProfileFields = {
-  full_name?: string
-  daily_goal?: number
-  pomodoro_duration?: number
-  short_break?: number
-  long_break?: number
+  nome_completo?: string
+  meta_diaria?: number
+  duracao_pomodoro?: number
+  tema_padrao?: string
 }
 
 export async function updateProfile(data: SupportedProfileFields) {
@@ -19,30 +19,33 @@ export async function updateProfile(data: SupportedProfileFields) {
   } = await supabase.auth.getUser()
 
   if (authError || !user) {
-    return { error: 'Sessao expirada. Faca login novamente.' }
+    return { error: 'Conexão Neural expirada. Faça login novamente.' }
   }
 
+  // Filtra apenas os campos que realmente existem no nosso novo banco
   const allowedEntries = Object.entries(data).filter(
     ([key, value]) =>
-      ['full_name', 'daily_goal', 'pomodoro_duration', 'short_break', 'long_break'].includes(key) &&
+      ['nome_completo', 'meta_diaria', 'duracao_pomodoro', 'tema_padrao'].includes(key) &&
       value !== undefined,
   )
 
   const updateData = Object.fromEntries(allowedEntries)
 
+  // Dispara a atualização para a tabela 'perfis'
   const { error } = await supabase
-    .from('profiles')
+    .from('perfis')
     .update({
       ...updateData,
-      updated_at: new Date().toISOString(),
+      atualizado_em: new Date().toISOString(),
     })
     .eq('id', user.id)
 
   if (error) {
-    console.error('Erro ao atualizar perfil:', error)
-    return { error: 'Nao foi possivel salvar as alteracoes.' }
+    console.error('[Erro Sistema] Falha ao atualizar perfil:', error)
+    return { error: 'Não foi possível salvar as configurações do Operador.' }
   }
 
+  // Atualiza o cache da tela de configurações
   revalidatePath('/dashboard/settings')
-  return { success: 'Configuracoes salvas com sucesso!' }
+  return { success: 'Configurações táticas salvas com sucesso!' }
 }

@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { CalendarView } from '@/components/dashboard/calendar-view'
 import { HeaderActions } from '@/components/dashboard/header-actions'
-import { CalendarDays } from 'lucide-react'
+import { CalendarDays, Sparkles } from 'lucide-react'
+import type { Task, Category } from '@/lib/types'
 
 export default async function CalendarPage() {
   const supabase = await createClient()
@@ -9,43 +10,64 @@ export default async function CalendarPage() {
 
   if (!user) return null
 
-  // Busca tarefas pendentes e categorias (A Fazer, Em Foco, Em Revisão)
+  // Busca tarefas com prazos e suas categorias
+  // Ajustado: status 'done' -> 'concluida'
   const [tasksResult, categoriesResult] = await Promise.all([
     supabase.from('tasks')
       .select('*, category:categories(*)')
       .eq('user_id', user.id)
-      .neq('status', 'done')
-      .not('due_date', 'is', null)
-      .order('due_date', { ascending: true }),
+      .neq('status', 'concluida') // Sincronizado com seu types.ts
+      .not('data_vencimento', 'is', null) // Sincronizado: due_date -> data_vencimento
+      .order('data_vencimento', { ascending: true }),
     
-    supabase.from('categories').select('*').eq('user_id', user.id)
+    supabase.from('categories')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('nome', { ascending: true })
   ])
 
-  const tasks = tasksResult.data || []
-  const categories = categoriesResult.data || []
+  // Tipagem explícita para evitar o erro de IntrinsicAttributes nos componentes filhos
+  const tasks = (tasksResult.data || []) as Task[]
+  const categories = (categoriesResult.data || []) as Category[]
 
   return (
-    <div className="flex flex-col h-full space-y-6 relative animate-in fade-in duration-500">
-      {/* Glow de Fundo do Dashboard */}
-      <div className="absolute top-0 right-1/4 w-[40vw] h-[40vw] bg-brand-cyan/5 blur-[120px] rounded-full pointer-events-none -z-10" />
+    <div className="flex flex-col h-full space-y-8 relative animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {/* Background FX - Atmosfera Cyberpunk/Minimalista */}
+      <div className="absolute -top-24 right-0 w-[500px] h-[500px] bg-brand-cyan/10 blur-[120px] rounded-full pointer-events-none -z-10 animate-pulse" />
+      <div className="absolute bottom-0 -left-24 w-[300px] h-[300px] bg-brand-violet/5 blur-[100px] rounded-full pointer-events-none -z-10" />
 
-      {/* Header Tático */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0 relative z-10">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-black uppercase tracking-tighter text-white">
-            <CalendarDays className="h-6 w-6 text-brand-cyan" />
-            Cronograma Tático
-          </h1>
-          <p className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground mt-1">
-            Visão panorâmica de prazos e janelas de revisão.
-          </p>
+      {/* Header Tático de Alta Performance */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 shrink-0 relative z-10 px-1">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-brand-cyan/10 rounded-lg border border-brand-cyan/20">
+              <CalendarDays className="h-6 w-6 text-brand-cyan" />
+            </div>
+            <h1 className="text-3xl font-black uppercase tracking-tighter italic text-white leading-none">
+              Cronograma Tático
+            </h1>
+          </div>
+          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">
+            <Sparkles className="w-3 h-3 text-brand-cyan/50" />
+            <span>Sincronização de prazos e carga cognitiva</span>
+          </div>
         </div>
-        <HeaderActions categories={categories} />
+        
+        {/* Actions - Botões de troca de visão e adição rápida */}
+        <div className="bg-card/40 p-1 rounded-2xl border border-white/5 backdrop-blur-md">
+          <HeaderActions categories={categories} />
+        </div>
       </div>
 
-      {/* Container Principal */}
-      <div className="flex-1 min-h-0 relative z-10 shadow-2xl">
+      {/* Container do Calendário com Glassmorphism */}
+      <div className="flex-1 min-h-[600px] relative z-10 bg-card/20 border border-white/5 rounded-[32px] overflow-hidden backdrop-blur-sm shadow-2xl">
+        <div className="absolute inset-0 bg-cyber-grid opacity-[0.03] pointer-events-none" />
         <CalendarView tasks={tasks} categories={categories} />
+      </div>
+
+      {/* Info de Atalho (Opcional, mas dá o toque FocusOS) */}
+      <div className="flex justify-center text-[9px] font-black uppercase tracking-[0.4em] text-white/20 pb-4">
+        Deep Work Engine • Tactical Calendar v2.0
       </div>
     </div>
   )

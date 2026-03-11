@@ -14,10 +14,10 @@ export async function updateProfile(formData: FormData) {
   
   // Atualiza a tabela profiles
   const { error } = await supabase
-    .from('profiles')
+    .from('perfis') // ATUALIZADO
     .update({ 
-        full_name: fullName,
-        updated_at: new Date().toISOString()
+        nome_completo: fullName, // ATUALIZADO
+        atualizado_em: new Date().toISOString() // ATUALIZADO
     })
     .eq('id', user.id)
 
@@ -35,11 +35,15 @@ export async function getIntegrationsStatus() {
   if (!user) return []
 
   const { data } = await supabase
-    .from('integrations')
-    .select('provider, created_at')
-    .eq('user_id', user.id)
+    .from('integracoes') // ATUALIZADO
+    .select('provedor, criado_em') // ATUALIZADO
+    .eq('usuario_id', user.id) // ATUALIZADO
 
-  return data || []
+  // Mapear de volta para o padrão que a UI espera em inglês para não quebrar a tela de Settings agora
+  return (data || []).map(int => ({
+    provider: int.provedor,
+    created_at: int.criado_em
+  }))
 }
 
 // --- 3. Desconectar Integração ---
@@ -50,10 +54,10 @@ export async function disconnectIntegration(provider: string) {
   if (!user) return { error: 'Não autorizado' }
 
   const { error } = await supabase
-    .from('integrations')
+    .from('integracoes') // ATUALIZADO
     .delete()
-    .eq('user_id', user.id)
-    .eq('provider', provider)
+    .eq('usuario_id', user.id) // ATUALIZADO
+    .eq('provedor', provider) // ATUALIZADO
 
   if (error) return { error: 'Erro ao desconectar.' }
 

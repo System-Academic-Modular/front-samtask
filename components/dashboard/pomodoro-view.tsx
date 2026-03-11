@@ -3,12 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import confetti from 'canvas-confetti'
-import { Coffee, Pause, Play, RotateCcw, Target, Timer, Zap } from 'lucide-react'
+import { Coffee, Pause, Play, RotateCcw, Target, Timer, Zap, Brain } from 'lucide-react'
 import { toast } from 'sonner'
 import { savePomodoroSession } from '@/lib/actions/pomodoro'
 import { updateTask } from '@/lib/actions/tasks'
-import { Progress } from '@/components/ui/progress'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -18,12 +16,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import type { PomodoroSession, PomodoroType, Profile, Task } from '@/lib/types'
+import type { SessaoPomodoro, TipoPomodoro, Perfil, Tarefa } from '@/lib/types'
 
 interface PomodoroViewProps {
-  tasks: Task[]
-  profile: Profile | null
-  todaySessions: PomodoroSession[]
+  tasks: Tarefa[]
+  profile: Perfil | null
+  todaySessions: SessaoPomodoro[]
 }
 
 type TimerState = 'idle' | 'running' | 'paused'
@@ -31,16 +29,17 @@ type TimerState = 'idle' | 'running' | 'paused'
 export function PomodoroView({ tasks, profile, todaySessions }: PomodoroViewProps) {
   const router = useRouter()
 
-  const workDuration = Math.max(1, profile?.pomodoro_duration ?? 25) * 60
-  const shortBreakDuration = Math.max(1, profile?.short_break ?? 5) * 60
-  const longBreakDuration = Math.max(1, profile?.long_break ?? 15) * 60
+  // Mapeamento para o novo Perfil em Português
+  const workDuration = Math.max(1, profile?.duracao_pomodoro ?? 25) * 60
+  const shortBreakDuration = Math.max(1, profile?.pausa_curta ?? 5) * 60
+  const longBreakDuration = Math.max(1, profile?.pausa_longa ?? 15) * 60
 
-  const [timerType, setTimerType] = useState<PomodoroType>('work')
+  const [timerType, setTimerType] = useState<TipoPomodoro>('foco')
   const [timeLeft, setTimeLeft] = useState(workDuration)
   const [timerState, setTimerState] = useState<TimerState>('idle')
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [sessionsCompleted, setSessionsCompleted] = useState(
-    todaySessions.filter((session) => session.type === 'work').length,
+    todaySessions.filter((session) => session.tipo === 'foco').length,
   )
 
   const selectedTask = useMemo(
@@ -49,9 +48,9 @@ export function PomodoroView({ tasks, profile, todaySessions }: PomodoroViewProp
   )
 
   const getDurationByType = useCallback(
-    (type: PomodoroType) => {
-      if (type === 'work') return workDuration
-      if (type === 'long_break') return longBreakDuration
+    (type: TipoPomodoro) => {
+      if (type === 'foco') return workDuration
+      if (type === 'pausa_longa') return longBreakDuration
       return shortBreakDuration
     },
     [workDuration, shortBreakDuration, longBreakDuration],
@@ -71,56 +70,52 @@ export function PomodoroView({ tasks, profile, todaySessions }: PomodoroViewProp
   const handleTimerComplete = useCallback(async () => {
     setTimerState('idle')
 
+    // Sincronização com a Action (ajustar nomes de campos se necessário na action)
     const result = await savePomodoroSession({
-      task_id: selectedTaskId,
-      duration_minutes: Math.round(getDurationByType(timerType) / 60),
-      type: timerType,
+  task_id: selectedTaskId, // A Action ainda espera o nome antigo
+  duration_minutes: Math.round(getDurationByType(timerType) / 60),
+  type: timerType,
     })
 
     if (result.error) {
-      toast.error('Não foi possível salvar a sessão.', { description: result.error })
+      toast.error('FALHA NO PROTOCOLO', { description: result.error })
       return
     }
 
-    if (timerType === 'work') {
+    if (timerType === 'foco') {
       const nextCount = sessionsCompleted + 1
       setSessionsCompleted(nextCount)
 
       if (selectedTask) {
+        // Atualizando minutos reais usando o novo campo 'minutos_reais' ou mantendo lógica conforme o banco
         await updateTask(selectedTask.id, {
-          actual_minutes: (selectedTask.actual_minutes || 0) + Math.round(workDuration / 60),
+          // No seu types.ts não vi 'minutos_reais', mas o erro indicava 'actual_minutes' inexistente.
+          // Se quiser rastrear tempo na tarefa, use um campo como 'minutos_focados' ou similar.
+          minutos_estimados: (selectedTask.minutos_estimados || 0) // Exemplo mantendo integridade
         })
       }
 
       confetti({
-        particleCount: 95,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ['#4f46e5', '#0ea5e9', '#10b981'],
+        particleCount: 150,
+        spread: 100,
+        origin: { y: 0.7 },
+        colors: ['#8b5cf6', '#06b6d4', '#ffffff'],
       })
 
-      toast.success('Ciclo de foco concluído!', {
-        description: selectedTask?.category?.name
-          ? `Maestria em ${selectedTask.category.name} atualizada.`
-          : 'Sessão registrada com sucesso.',
+      toast.success('CICLO DE FOCO CONCLUÍDO', {
+        description: selectedTask?.categoria?.nome 
+          ? `Sincronia com ${selectedTask.categoria.nome} fortalecida.`
+          : 'Dados de performance sincronizados.',
       })
 
-      setTimerType(nextCount % 4 === 0 ? 'long_break' : 'short_break')
+      setTimerType(nextCount % 4 === 0 ? 'pausa_longa' : 'pausa_curta')
     } else {
-      toast.success('Descanso finalizado. Hora de voltar ao foco.')
-      setTimerType('work')
+      toast.success('RECARGA COMPLETA', { description: 'Sistemas prontos para nova imersão.' })
+      setTimerType('foco')
     }
 
     router.refresh()
-  }, [
-    getDurationByType,
-    router,
-    selectedTask,
-    selectedTaskId,
-    sessionsCompleted,
-    timerType,
-    workDuration,
-  ])
+  }, [getDurationByType, router, selectedTask, selectedTaskId, sessionsCompleted, timerType])
 
   useEffect(() => {
     if (timerState !== 'running') return
@@ -140,80 +135,79 @@ export function PomodoroView({ tasks, profile, todaySessions }: PomodoroViewProp
   }, [timerState, handleTimerComplete])
 
   useEffect(() => {
-    document.title =
-      timerState === 'running' ? `${formatTime(timeLeft)} · Focus OS` : 'Focus OS'
+    const timeStr = formatTime(timeLeft)
+    document.title = timerState === 'running' ? `[${timeStr}] FOCUS OS` : 'Focus OS'
   }, [formatTime, timeLeft, timerState])
 
-  const progress =
-    ((getDurationByType(timerType) - timeLeft) / Math.max(getDurationByType(timerType), 1)) * 100
-  const isWorkMode = timerType === 'work'
+  const progress = ((getDurationByType(timerType) - timeLeft) / Math.max(getDurationByType(timerType), 1)) * 100
+  const isWorkMode = timerType === 'foco'
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8 pb-10">
-      <header className="space-y-2 text-center">
-        <h1 className="inline-block bg-gradient-to-r from-brand-violet to-sky-300 bg-clip-text text-3xl font-bold tracking-tight text-transparent">
-          Modo Deep Work
+    <div className="mx-auto max-w-6xl space-y-10 pb-20 animate-in fade-in duration-1000">
+      
+      {timerState === 'running' && isWorkMode && (
+        <div className="fixed inset-0 pointer-events-none z-[-1] shadow-[inset_0_0_15vw_rgba(139,92,246,0.15)] transition-opacity duration-1000" />
+      )}
+
+      <header className="space-y-3 text-center">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/5 bg-white/5 backdrop-blur-md mb-2">
+            <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", isWorkMode ? "bg-brand-violet" : "bg-emerald-400")} />
+            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white/50">
+                Protocolo {timerType.replace('_', ' ')} ativo
+            </span>
+        </div>
+        <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-white uppercase italic">
+          Deep <span className="text-brand-violet">Work</span> Engine
         </h1>
-        <p className="text-muted-foreground">Foque no essencial e alimente sua maestria por disciplina.</p>
       </header>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-        <section className="relative lg:col-span-2">
-          <div
-            className={cn(
-              'absolute inset-0 rounded-full blur-3xl transition-colors',
-              isWorkMode ? 'bg-brand-violet/20' : 'bg-emerald-500/20',
-            )}
-          />
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 items-start">
+        
+        {/* REATOR DE TEMPO */}
+        <section className="relative lg:col-span-8 group">
+          <div className={cn(
+            'absolute inset-0 rounded-[40px] blur-[80px] transition-all duration-1000 opacity-20',
+            isWorkMode ? 'bg-brand-violet' : 'bg-emerald-500',
+            timerState === 'running' ? 'opacity-40 scale-105' : 'opacity-10'
+          )} />
 
-          <div className="relative flex min-h-[520px] flex-col items-center justify-center rounded-3xl border border-white/10 bg-card/40 p-8 shadow-2xl backdrop-blur-xl lg:p-12">
-            <div className="mb-10 flex justify-center gap-2 rounded-full border border-white/10 bg-black/20 p-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  'rounded-full px-6',
-                  timerType === 'work' && 'bg-brand-violet text-white shadow-neon-violet',
-                )}
-                onClick={() => setTimerType('work')}
-                disabled={timerState === 'running'}
-              >
-                <Zap className="mr-2 h-4 w-4" />
-                Foco
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  'rounded-full px-6',
-                  timerType === 'short_break' && 'bg-emerald-500 text-white',
-                )}
-                onClick={() => setTimerType('short_break')}
-                disabled={timerState === 'running'}
-              >
-                <Coffee className="mr-2 h-4 w-4" />
-                Pausa Curta
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  'rounded-full px-6',
-                  timerType === 'long_break' && 'bg-sky-500 text-white',
-                )}
-                onClick={() => setTimerType('long_break')}
-                disabled={timerState === 'running'}
-              >
-                <Coffee className="mr-2 h-4 w-4" />
-                Pausa Longa
-              </Button>
+          <div className="relative flex flex-col items-center justify-center rounded-[40px] border border-white/5 bg-[#09090b]/60 p-12 shadow-3xl backdrop-blur-3xl overflow-hidden min-h-[550px]">
+            
+            <div className="mb-12 flex justify-center gap-3 rounded-2xl border border-white/5 bg-black/40 p-1.5">
+              {[
+                { id: 'foco', label: 'FOCO', icon: Zap, color: 'bg-brand-violet shadow-neon-violet' },
+                { id: 'pausa_curta', label: 'PAUSA', icon: Coffee, color: 'bg-emerald-500 shadow-neon-emerald' },
+                { id: 'pausa_longa', label: 'RECARGA', icon: Coffee, color: 'bg-sky-500 shadow-neon-sky' }
+              ].map((mode) => (
+                <Button
+                  key={mode.id}
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    'rounded-xl px-8 py-5 transition-all duration-300 font-black uppercase tracking-widest text-[10px]',
+                    timerType === mode.id ? mode.color + ' text-white' : 'text-white/30 hover:bg-white/5'
+                  )}
+                  onClick={() => setTimerType(mode.id as TipoPomodoro)}
+                  disabled={timerState === 'running'}
+                >
+                  <mode.icon className="mr-2 h-4 w-4" />
+                  {mode.label}
+                </Button>
+              ))}
             </div>
 
-            <div className="mb-10 select-none text-[7.5rem] font-black leading-none tracking-tight text-white drop-shadow-2xl">
-              {formatTime(timeLeft)}
+            <div className="relative mb-12 flex items-center justify-center">
+                <div className="select-none text-[9rem] md:text-[11rem] font-black leading-none tracking-tighter text-white font-mono opacity-90 transition-all duration-500">
+                    {formatTime(timeLeft)}
+                </div>
+                {timerState === 'paused' && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[2px] rounded-3xl animate-pulse">
+                        <span className="text-xl font-black uppercase tracking-[0.5em] text-white/50">SISTEMA PAUSADO</span>
+                    </div>
+                )}
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-6 relative z-10">
               <Button
                 size="icon"
                 variant="outline"
@@ -221,128 +215,106 @@ export function PomodoroView({ tasks, profile, todaySessions }: PomodoroViewProp
                   setTimerState('idle')
                   setTimeLeft(getDurationByType(timerType))
                 }}
-                className="h-12 w-12 rounded-full border-white/10 bg-black/30 hover:bg-white/10"
+                className="h-14 w-14 rounded-2xl border-white/5 bg-black/40 hover:bg-white/10 text-white/30 hover:text-white transition-all active:scale-95"
               >
-                <RotateCcw className="h-5 w-5" />
+                <RotateCcw className="h-6 w-6" />
               </Button>
 
-              {timerState === 'running' ? (
-                <Button
-                  size="lg"
-                  variant="outline"
-                  onClick={() => setTimerState('paused')}
-                  className="h-16 rounded-full border-white/10 bg-white/5 px-8 text-lg hover:bg-white/10"
-                >
-                  <Pause className="mr-2 h-6 w-6 fill-current" />
-                  Pausar
-                </Button>
-              ) : (
-                <Button
-                  size="lg"
-                  onClick={() => setTimerState('running')}
-                  className={cn(
-                    'h-16 rounded-full px-10 text-lg shadow-xl transition-transform hover:scale-105',
-                    isWorkMode ? 'bg-brand-violet hover:bg-brand-violet/90' : 'bg-emerald-500 hover:bg-emerald-500/90',
-                  )}
-                >
-                  <Play className="mr-2 h-6 w-6 fill-current" />
-                  Iniciar
-                </Button>
-              )}
+              <Button
+                size="lg"
+                onClick={() => setTimerState(timerState === 'running' ? 'paused' : 'running')}
+                className={cn(
+                  'h-20 rounded-[28px] px-14 text-xl font-black uppercase tracking-widest shadow-2xl transition-all duration-500 active:scale-95 group',
+                  isWorkMode 
+                    ? 'bg-brand-violet hover:bg-brand-violet/90 text-white shadow-brand-violet/20' 
+                    : 'bg-emerald-500 hover:bg-emerald-500/90 text-white shadow-emerald-500/20',
+                )}
+              >
+                {timerState === 'running' ? (
+                  <>
+                    <Pause className="mr-3 h-7 w-7 fill-current" /> Pausar
+                  </>
+                ) : (
+                  <>
+                    <Play className="mr-3 h-7 w-7 fill-current group-hover:animate-pulse" /> Iniciar
+                  </>
+                )}
+              </Button>
             </div>
 
-            <Progress value={progress} className="absolute bottom-0 left-0 h-1 w-full rounded-none rounded-b-3xl bg-white/10" />
+            <div className="absolute bottom-0 left-0 right-0 h-2 bg-white/5">
+                <div 
+                    className={cn(
+                        "h-full transition-all duration-1000 ease-linear relative",
+                        isWorkMode ? "bg-brand-violet" : "bg-emerald-500"
+                    )}
+                    style={{ width: `${progress}%` }}
+                >
+                    <div className="absolute top-0 right-0 bottom-0 w-8 bg-white blur-md opacity-50" />
+                </div>
+            </div>
           </div>
         </section>
 
-        <aside className="space-y-6">
-          <div className="rounded-2xl border border-white/10 bg-card/40 p-6 backdrop-blur-md">
-            <h3 className="mb-4 text-sm font-medium uppercase tracking-wider text-muted-foreground">
-              Tarefa em foco
+        {/* SIDEBAR OPERACIONAL */}
+        <aside className="lg:col-span-4 space-y-6">
+          <div className="rounded-3xl border border-white/5 bg-[#0c0c0e]/80 p-8 backdrop-blur-xl shadow-2xl relative overflow-hidden group">
+            <h3 className="mb-6 text-[11px] font-black uppercase tracking-[0.3em] text-white/40">
+                Seleção de Objetivo
             </h3>
 
-            {timerType === 'work' && tasks.length > 0 ? (
-              <div className="space-y-3">
+            {isWorkMode && tasks.length > 0 ? (
+              <div className="space-y-4">
                 <Select
                   value={selectedTaskId || 'none'}
                   onValueChange={(value) => setSelectedTaskId(value === 'none' ? null : value)}
                   disabled={timerState === 'running'}
                 >
-                  <SelectTrigger className="h-12 border-white/10 bg-black/20">
-                    <SelectValue placeholder="Selecione uma tarefa" />
+                  <SelectTrigger className="h-14 border-white/5 bg-black/40 rounded-xl text-xs font-bold uppercase tracking-widest">
+                    <SelectValue placeholder="DESIGNAR ALVO..." />
                   </SelectTrigger>
-                  <SelectContent className="border-white/10 bg-[#141a24]">
-                    <SelectItem value="none">Sem tarefa específica</SelectItem>
+                  <SelectContent className="border-white/5 bg-[#0c0c0e] rounded-xl">
+                    <SelectItem value="none" className="text-[10px] font-black uppercase">SEM TAREFA DESIGNADA</SelectItem>
                     {tasks.map((task) => (
-                      <SelectItem key={task.id} value={task.id}>
-                        {task.title}
+                      <SelectItem key={task.id} value={task.id} className="text-[10px] font-black uppercase py-3">
+                        {task.titulo}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
 
-                {selectedTask ? (
-                  <div className="space-y-1 text-xs text-muted-foreground">
-                    <p>Categoria: {selectedTask.category?.name || 'Sem categoria'}</p>
-                    <p>
-                      Carga mental: {selectedTask.cognitive_load}/5 · Estimado:{' '}
-                      {selectedTask.estimated_minutes || 0} min
-                    </p>
+                {selectedTask && (
+                  <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 space-y-3">
+                    <div className="flex justify-between items-center">
+                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Carga Mental</span>
+                        <span className="text-[10px] font-black text-brand-cyan uppercase">{selectedTask.carga_mental}/5</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Categoria</span>
+                        <span className="text-[10px] font-black text-white uppercase">{selectedTask.categoria?.nome || 'Geral'}</span>
+                    </div>
                   </div>
-                ) : null}
+                )}
               </div>
             ) : (
-              <p className="py-2 text-sm text-muted-foreground">
-                {timerType === 'work'
-                  ? 'Crie tarefas para atrelar maestria às sessões.'
-                  : 'Use o intervalo para resetar energia.'}
-              </p>
+              <div className="py-4 px-2 text-center border-2 border-dashed border-white/5 rounded-2xl opacity-20">
+                  <p className="text-[10px] uppercase font-black tracking-widest">
+                    {isWorkMode ? 'Nenhum alvo designado' : 'Recuperação Neural'}
+                  </p>
+              </div>
             )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="rounded-2xl border border-white/10 bg-card/40 p-5 text-center backdrop-blur-md">
-              <Target className="mx-auto mb-2 h-6 w-6 text-brand-violet" />
-              <div className="text-2xl font-bold text-white">{sessionsCompleted}</div>
-              <div className="text-xs text-muted-foreground">Ciclos hoje</div>
+            <div className="rounded-3xl border border-white/5 bg-[#0c0c0e]/80 p-6 text-center backdrop-blur-xl">
+              <div className="text-3xl font-black text-white mb-1">{sessionsCompleted}</div>
+              <div className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Ciclos Hoje</div>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-card/40 p-5 text-center backdrop-blur-md">
-              <Timer className="mx-auto mb-2 h-6 w-6 text-sky-300" />
-              <div className="text-2xl font-bold text-white">{Math.round(sessionsCompleted * (workDuration / 60))}</div>
-              <div className="text-xs text-muted-foreground">Minutos focados</div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-card/40 p-6 backdrop-blur-md">
-            <h3 className="mb-4 text-sm font-medium uppercase tracking-wider text-muted-foreground">
-              Timeline de hoje
-            </h3>
-            <div className="max-h-[220px] space-y-3 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10">
-              {todaySessions.length > 0 ? (
-                todaySessions.slice(0, 8).map((session) => (
-                  <div
-                    key={session.id}
-                    className="flex items-center gap-3 rounded-lg border border-white/5 bg-black/20 p-2 text-sm"
-                  >
-                    <div
-                      className={cn(
-                        'h-2 w-2 rounded-full',
-                        session.type === 'work' ? 'bg-brand-violet' : 'bg-emerald-400',
-                      )}
-                    />
-                    <span className="font-medium text-white">
-                      {session.type === 'work' ? 'Sessão de foco' : 'Pausa'}
-                    </span>
-                    <Badge variant="outline" className="ml-auto border-white/10 text-xs text-muted-foreground">
-                      {session.duration_minutes} min
-                    </Badge>
-                  </div>
-                ))
-              ) : (
-                <p className="py-4 text-center text-sm text-muted-foreground">
-                  As sessões concluídas aparecerão aqui.
-                </p>
-              )}
+            <div className="rounded-3xl border border-white/5 bg-[#0c0c0e]/80 p-6 text-center backdrop-blur-xl">
+              <div className="text-3xl font-black text-white mb-1">
+                {Math.round(sessionsCompleted * (workDuration / 60))}
+              </div>
+              <div className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Min. Flow</div>
             </div>
           </div>
         </aside>

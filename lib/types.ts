@@ -1,126 +1,187 @@
-export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done' // Adicionado 'review'
-export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent'
-export type PomodoroType = 'work' | 'short_break' | 'long_break'
-export type CognitiveLoad = 1 | 2 | 3 | 4 | 5
+// ----------------------------------------------------------------------
+// TIPOS BASE (LITERAIS)
+// ----------------------------------------------------------------------
+export type StatusTarefa = 'pendente' | 'em_progresso' | 'revisao' | 'concluida'
+export type PrioridadeTarefa = 'baixa' | 'media' | 'alta' | 'urgente'
+export type TipoPomodoro = 'foco' | 'pausa_curta' | 'pausa_longa'
+export type CargaMental = 1 | 2 | 3 | 4 | 5
 
-export interface Profile {
+// ----------------------------------------------------------------------
+// TABELAS DO BANCO DE DADOS
+// ----------------------------------------------------------------------
+
+export interface Perfil {
   id: string
-  full_name: string | null
-  avatar_url: string | null
+  nome_completo: string
+  avatar_url?: string
   email: string
-  daily_goal?: number | null
-  pomodoro_duration?: number | null
-  short_break?: number | null
-  long_break?: number | null
-  theme_color?: string | null
-  theme_mode?: 'light' | 'dark' | 'system' | null
   
-  // Novos Campos (Gamificação e UI Avançada)
-  xp?: number
-  current_level?: number
-  theme_preset?: string
-  accent_color?: string
+  // Configurações
+  meta_diaria?: number | null
+  duracao_pomodoro?: number | null
+  pausa_curta?: number | null
+  pausa_longa?: number | null
+  tema_padrao?: string | null
   
-  created_at: string
-  updated_at: string
-}
-
-export interface Category {
-  id: string
-  user_id: string
-  name: string
-  color: string
-  icon?: string | null
-  created_at: string
-  updated_at?: string | null
-}
-
-export interface Tag {
-  id: string
-  user_id: string
-  name: string
-  color: string
-  created_at: string
-}
-
-export interface Team {
-  id: string
-  name: string
-  description: string | null
-  owner_id: string
-  invite_code: string
-  created_at: string
-  updated_at: string
-}
-
-export interface TeamMember {
-  id: string
-  team_id: string
-  user_id: string
-  role: 'owner' | 'admin' | 'member'
-  joined_at: string
-  team?: Team
-  profile?: Profile | null
-}
-
-export interface Task {
-  id: string
-  user_id: string
-  title: string
-  description: string | null
-  status: TaskStatus
-  priority: TaskPriority
-  cognitive_load: CognitiveLoad
-  due_date: string | null
-  position: number | null
-  created_at: string
-  updated_at: string
-  completed_at?: string | null
-  team_id?: string | null
-  category_id?: string | null
-  parent_id?: string | null
-  assignee_id?: string | null
-  estimated_minutes?: number | null
-  actual_minutes?: number | null
-  is_recurring?: boolean | null
-  recurrence_pattern?: string | null
+  // Motor de Gamificação (Essenciais para o SettingsView)
+  xp: number
+  nivel_atual: number
   
-  // Novos Campos (Algoritmo de Repetição Espaçada)
-  next_review_date?: string | null
-  review_count?: number
+  criado_em: string
+  atualizado_em: string
+}
+
+// Removida a duplicata de Categoria e UsuarioProfile aqui...
+
+export interface Categoria {
+  id: string
+  usuario_id: string
+  nome: string
+  cor: string
+  icone?: string | null
+  criado_em: string
+}
+
+export interface Equipe {
+  id: string
+  nome: string
+  descricao: string | null
+  dono_id: string
+  codigo_convite: string
+  criado_em: string
+}
+
+export interface MembroEquipe {
+  id: string
+  equipe_id: string
+  usuario_id: string
+  papel: 'dono' | 'admin' | 'membro'
+  entrou_em: string
   
-  category?: Category | null
-  assignee?: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
-  subtasks?: Task[]
+  // Relacionamentos para UI
+  equipe?: Equipe
+  perfil?: Perfil | null
 }
-
-export interface PomodoroSession {
+export interface UpdateCategoryInput {
+  nome?: string;
+  cor?: string;
+}
+export interface UsuarioProfile {
   id: string
-  user_id: string
-  task_id: string | null
-  duration_minutes: number
-  type: PomodoroType
-  completed_at: string
+  email: string
+  nome_completo: string
+  avatar_url?: string
+  // adicione outros campos do seu banco aqui
 }
 
-export interface MasteryScore {
+export interface Categoria {
   id: string
-  user_id: string
-  category_id: string
-  score: number
-  total_minutes: number
-  last_session_at: string | null
-  last_study_date?: string | null // Sincronizado com a View de Retenção Neural
-  created_at: string
-  updated_at: string
-  category?: Category | null
+  nome: string
+  cor: string
+  usuario_id: string
 }
 
-// Alias de retrocompatibilidade para o resto do sistema
-export type Tarefa = Task
-export type Categoria = Category
-export type StatusTarefa = TaskStatus
-export type PrioridadeTarefa = TaskPriority
-export type MembroTime = TeamMember
-export type UsuarioProfile = Profile
-export type TipoPomodoro = Uppercase<PomodoroType>
+export interface CreateCategoryInput {
+  nome: string
+  cor: string
+}
+
+export interface UpdateCategoryInput {
+  nome?: string
+  cor?: string
+}
+export interface Tarefa {
+  id: string
+  usuario_id: string
+  categoria_id?: string | null
+  equipe_id?: string | null
+  tarefa_pai_id?: string | null
+  atribuido_a?: string | null
+  
+  // Dados Principais
+  titulo: string
+  descricao?: string | null
+  status: StatusTarefa
+  prioridade: PrioridadeTarefa
+  carga_mental: CargaMental
+  
+  // Prazos e Tempos
+  data_vencimento?: string | null
+  minutos_estimados?: number | null
+  
+  // Algoritmo de Repetição Espaçada
+  data_conclusao?: string | null
+  proxima_revisao?: string | null
+  contagem_revisoes: number
+  
+  criado_em: string
+  atualizado_em: string
+  
+  // Relacionamentos para UI (JOINs)
+  categoria?: Categoria | null
+  atribuido?: Pick<Perfil, 'id' | 'nome_completo' | 'avatar_url'> | null
+  subtarefas?: Tarefa[]
+}
+
+export interface SessaoPomodoro {
+  id: string
+  usuario_id: string
+  tarefa_id: string | null
+  duracao_minutos: number
+  tipo: TipoPomodoro
+  concluido_em: string
+}
+
+export interface CheckinEmocional {
+  id: string
+  usuario_id: string
+  humor: number
+  energia: number
+  nota?: string | null
+  criado_em: string
+}
+
+export interface Integracao {
+  id: string
+  usuario_id: string
+  provedor: string
+  access_token?: string | null
+  refresh_token?: string | null
+  expira_em?: number | null
+  criado_em: string
+  atualizado_em: string
+}
+
+// ----------------------------------------------------------------------
+// SISTEMA DE MAESTRIA E PROGRESSO
+// ----------------------------------------------------------------------
+
+export interface StatusMaestria {
+  nivel: number
+  xp_atual: number
+  proximo_nivel_xp: number
+  total_foco_minutos: number
+}
+
+export interface MaestriaCategoria {
+  id: string
+  categoria_id: string
+  categoria_nome: string
+  categoria_cor: string
+  pontuacao: number // 0 a 100
+  estado: 'aprendendo' | 'dominado' | 'esquecendo'
+  data_ultimo_estudo: string
+}
+
+// ----------------------------------------------------------------------
+// ALIASES DE RETROCOMPATIBILIDADE
+// ----------------------------------------------------------------------
+export type Task = Tarefa
+export type Category = Categoria
+export type Profile = Perfil
+export type Team = Equipe
+export type TeamMember = MembroEquipe
+export type TaskStatus = StatusTarefa
+export type TaskPriority = PrioridadeTarefa
+export type PomodoroSession = SessaoPomodoro
+export type PomodoroType = TipoPomodoro

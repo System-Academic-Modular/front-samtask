@@ -2,100 +2,74 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-
-interface CreateCategoryInput {
-  name: string
-  color: string
-}
-
-interface UpdateCategoryInput {
-  name?: string
-  color?: string
-}
+import { CreateCategoryInput, UpdateCategoryInput } from '@/lib/types'
 
 export async function createCategory(input: CreateCategoryInput) {
   const supabase = await createClient()
-  
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   
-  if (authError || !user) {
-    return { error: 'Nao autenticado' }
-  }
+  if (authError || !user) return { error: 'Não autenticado' }
 
   const { data, error } = await supabase
-    .from('categories')
+    .from('categorias')
     .insert({
-      user_id: user.id,
-      name: input.name,
-      color: input.color,
+      usuario_id: user.id,
+      nome: input.nome, 
+      cor: input.cor,
     })
     .select()
     .single()
 
-  if (error) {
-    return { error: error.message }
-  }
+  if (error) return { error: error.message }
 
   revalidatePath('/dashboard', 'layout')
-  
   return { data }
 }
 
 export async function updateCategory(categoryId: string, input: UpdateCategoryInput) {
   const supabase = await createClient()
-  
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   
-  if (authError || !user) {
-    return { error: 'Nao autenticado' }
-  }
+  if (authError || !user) return { error: 'Não autenticado' }
 
   const { data, error } = await supabase
-    .from('categories')
+    .from('categorias')
     .update({
-      ...input,
+      nome: input.nome,
+      cor: input.cor,
     })
     .eq('id', categoryId)
-    .eq('user_id', user.id)
+    .eq('usuario_id', user.id)
     .select()
     .single()
 
-  if (error) {
-    return { error: error.message }
-  }
+  if (error) return { error: error.message }
 
   revalidatePath('/dashboard', 'layout')
-  
   return { data }
 }
 
 export async function deleteCategory(categoryId: string) {
   const supabase = await createClient()
-  
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   
-  if (authError || !user) {
-    return { error: 'Nao autenticado' }
-  }
+  if (authError || !user) return { error: 'Não autenticado' }
 
-  // First, remove category from all tasks
+  // Primeiro, remove a referência da categoria em todas as tarefas
   await supabase
-    .from('tasks')
-    .update({ category_id: null })
-    .eq('category_id', categoryId)
-    .eq('user_id', user.id)
+    .from('tarefas')
+    .update({ categoria_id: null })
+    .eq('categoria_id', categoryId)
+    .eq('usuario_id', user.id)
 
   const { error } = await supabase
-    .from('categories')
+    .from('categorias')
     .delete()
     .eq('id', categoryId)
-    .eq('user_id', user.id)
+    .eq('usuario_id', user.id)
 
-  if (error) {
-    return { error: error.message }
-  }
+  if (error) return { error: error.message }
 
   revalidatePath('/dashboard', 'layout')
-  
   return { success: true }
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useTransition } from 'react'
-import type { Category, CognitiveLoad, TaskPriority, TeamMember } from '@/lib/types'
+import type { Categoria, CargaMental, PrioridadeTarefa, MembroEquipe } from '@/lib/types'
 import { createTask } from '@/lib/actions/tasks'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -26,105 +26,109 @@ import { ptBR } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
 
 interface QuickAddTaskProps {
-  categories: Category[]
+  categories: Categoria[]
   parentId?: string
   selectedTeamId?: string | null
-  teamMembers?: TeamMember[]
+  teamMembers?: MembroEquipe[]
 }
 
 export function QuickAddTask({ categories, parentId, selectedTeamId, teamMembers = [] }: QuickAddTaskProps) {
-  const [title, setTitle] = useState('')
-  const [priority, setPriority] = useState<TaskPriority>('medium')
-  const [categoryId, setCategoryId] = useState<string>('none')
-  const [assigneeId, setAssigneeId] = useState<string>('none')
-  const [cognitiveLoad, setCognitiveLoad] = useState<CognitiveLoad>(3)
-  const [dueDate, setDueDate] = useState<Date | undefined>()
+  const [titulo, setTitulo] = useState('')
+  const [prioridade, setPrioridade] = useState<PrioridadeTarefa>('media')
+  const [categoriaId, setCategoriaId] = useState<string>('none')
+  const [atribuidoA, setAtribuidoA] = useState<string>('none')
+  const [cargaMental, setCargaMental] = useState<CargaMental>(3)
+  const [dataVencimento, setDataVencimento] = useState<Date | undefined>()
   const [showOptions, setShowOptions] = useState(false)
   const [isPending, startTransition] = useTransition()
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
-    if (!title.trim()) return
+    if (!titulo.trim()) return
 
     startTransition(async () => {
       const result = await createTask({
-        title: title.trim(),
-        priority,
-        category_id: categoryId === 'none' ? undefined : categoryId,
-        due_date: dueDate?.toISOString(),
-        parent_id: parentId,
-        team_id: selectedTeamId || undefined,
-        assignee_id: assigneeId === 'none' ? undefined : assigneeId,
-        cognitive_load: cognitiveLoad,
+        titulo: titulo.trim(),
+        prioridade,
+        categoria_id: categoriaId === 'none' ? undefined : categoriaId,
+        data_vencimento: dataVencimento?.toISOString(),
+        tarefa_pai_id: parentId,
+        equipe_id: selectedTeamId || undefined,
+        atribuido_a: atribuidoA === 'none' ? undefined : atribuidoA,
+        carga_mental: cargaMental,
       })
 
       if (result.error) {
-        toast.error('Erro ao criar tarefa', {
+        toast.error('Erro ao adicionar', {
           description: result.error,
         })
         return
       }
 
-      toast.success('Tarefa criada!')
-      setTitle('')
-      setPriority('medium')
-      setCategoryId('none')
-      setAssigneeId('none')
-      setCognitiveLoad(3)
-      setDueDate(undefined)
+      toast.success('Missão injetada no radar!')
+      setTitulo('')
+      setPrioridade('media')
+      setCategoriaId('none')
+      setAtribuidoA('none')
+      setCargaMental(3)
+      setDataVencimento(undefined)
       setShowOptions(false)
     })
   }
 
   return (
-    <Card>
-      <CardContent className="p-4">
+    <Card className="bg-black/40 border-white/10 backdrop-blur-md overflow-hidden transition-all duration-300 focus-within:border-brand-violet/50 focus-within:shadow-[0_0_20px_rgba(139,92,246,0.1)]">
+      <CardContent className="p-3">
         <form onSubmit={handleSubmit}>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             <div className="flex-1">
               <Input
-                placeholder="Adicionar nova tarefa..."
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                placeholder="[ Terminal ] Adicione uma nova missão ao sistema..."
+                value={titulo}
+                onChange={(e) => setTitulo(e.target.value)}
                 onFocus={() => setShowOptions(true)}
                 disabled={isPending}
-                className="border-0 shadow-none focus-visible:ring-0 px-0 text-base"
+                className="bg-transparent border-none text-white focus-visible:ring-0 px-2 text-base placeholder:text-muted-foreground/50 placeholder:font-mono"
               />
             </div>
-            <Button type="submit" size="sm" disabled={!title.trim() || isPending}>
-              {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              <span className="ml-1 hidden sm:inline">Adicionar</span>
+            <Button 
+              type="submit" 
+              size="sm" 
+              disabled={!titulo.trim() || isPending}
+              className="bg-brand-violet hover:bg-brand-violet/80 text-white font-black tracking-widest uppercase text-[10px] h-9 px-4 rounded-lg shadow-[0_0_10px_rgba(139,92,246,0.2)] transition-all hover:scale-105"
+            >
+              {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
+              <span className="hidden sm:inline">INJETAR</span>
             </Button>
           </div>
 
           {showOptions && (
-            <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-border">
-              <Select value={priority} onValueChange={(v) => setPriority(v as TaskPriority)}>
-                <SelectTrigger className="w-[130px] h-8">
-                  <Flag className="w-3 h-3 mr-1" />
+            <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-white/5 animate-in fade-in slide-in-from-top-2 duration-300">
+              <Select value={prioridade} onValueChange={(v) => setPrioridade(v as PrioridadeTarefa)}>
+                <SelectTrigger className="w-[120px] h-8 bg-white/5 border-white/10 text-[10px] uppercase font-bold tracking-wider">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Baixa</SelectItem>
-                  <SelectItem value="medium">Media</SelectItem>
-                  <SelectItem value="high">Alta</SelectItem>
-                  <SelectItem value="urgent">Urgente</SelectItem>
+                <SelectContent className="bg-[#18181b] border-white/10 text-white">
+                  <SelectItem value="baixa"><div className="flex items-center"><Flag className="w-3 h-3 mr-2 text-blue-400" /> BAIXA</div></SelectItem>
+                  <SelectItem value="media"><div className="flex items-center"><Flag className="w-3 h-3 mr-2 text-brand-cyan" /> MÉDIA</div></SelectItem>
+                  <SelectItem value="alta"><div className="flex items-center"><Flag className="w-3 h-3 mr-2 text-orange-400" /> ALTA</div></SelectItem>
+                  <SelectItem value="urgente"><div className="flex items-center"><Flag className="w-3 h-3 mr-2 text-red-500 animate-pulse" /> URGENTE</div></SelectItem>
                 </SelectContent>
               </Select>
 
               {categories.length > 0 && (
-                <Select value={categoryId} onValueChange={setCategoryId}>
-                  <SelectTrigger className="w-[150px] h-8">
+                <Select value={categoriaId} onValueChange={setCategoriaId}>
+                  <SelectTrigger className="w-[140px] h-8 bg-white/5 border-white/10 text-[10px] uppercase font-bold tracking-wider">
                     <SelectValue placeholder="Categoria" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Sem categoria</SelectItem>
+                  <SelectContent className="bg-[#18181b] border-white/10 text-white">
+                    <SelectItem value="none">SEM CATEGORIA</SelectItem>
                     {categories.map((cat) => (
                       <SelectItem key={cat.id} value={cat.id}>
                         <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
-                          {cat.name}
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.cor, boxShadow: `0 0 5px ${cat.cor}80` }} />
+                          {cat.nome}
                         </div>
                       </SelectItem>
                     ))}
@@ -133,16 +137,16 @@ export function QuickAddTask({ categories, parentId, selectedTeamId, teamMembers
               )}
 
               {!!selectedTeamId && (
-                <Select value={assigneeId} onValueChange={setAssigneeId}>
-                  <SelectTrigger className="w-[190px] h-8">
-                    <UserRound className="w-3 h-3 mr-1" />
+                <Select value={atribuidoA} onValueChange={setAtribuidoA}>
+                  <SelectTrigger className="w-[140px] h-8 bg-white/5 border-white/10 text-[10px] uppercase font-bold tracking-wider">
+                    <UserRound className="w-3 h-3 mr-1 text-muted-foreground" />
                     <SelectValue placeholder="Responsável" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Sem responsável</SelectItem>
+                  <SelectContent className="bg-[#18181b] border-white/10 text-white">
+                    <SelectItem value="none">SEM RESPONSÁVEL</SelectItem>
                     {teamMembers.map((member) => (
-                      <SelectItem key={member.user_id} value={member.user_id}>
-                        {member.profile?.full_name || 'Membro da equipe'}
+                      <SelectItem key={member.usuario_id} value={member.usuario_id}>
+                        {member.perfil?.nome_completo || 'Membro da equipe'}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -154,37 +158,38 @@ export function QuickAddTask({ categories, parentId, selectedTeamId, teamMembers
                   <Button
                     variant="outline"
                     size="sm"
-                    className={cn('h-8 justify-start text-left font-normal', !dueDate && 'text-muted-foreground')}
+                    className={cn('h-8 bg-white/5 border-white/10 text-[10px] uppercase font-bold tracking-wider', !dataVencimento && 'text-muted-foreground hover:text-white')}
                   >
-                    <CalendarIcon className="mr-1 h-3 w-3" />
-                    {dueDate ? format(dueDate, 'dd/MM/yyyy', { locale: ptBR }) : 'Data'}
+                    <CalendarIcon className="mr-2 h-3 w-3" />
+                    {dataVencimento ? format(dataVencimento, 'dd MMM yyyy', { locale: ptBR }) : 'PRAZO'}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="w-auto p-0 bg-[#18181b] border-white/10" align="start">
                   <Calendar
                     mode="single"
-                    selected={dueDate}
-                    onSelect={setDueDate}
+                    selected={dataVencimento}
+                    onSelect={setDataVencimento}
                     initialFocus
                     locale={ptBR}
+                    className="text-white"
                   />
                 </PopoverContent>
               </Popover>
 
               <Select
-                value={String(cognitiveLoad)}
-                onValueChange={(value) => setCognitiveLoad(Number(value) as CognitiveLoad)}
+                value={String(cargaMental)}
+                onValueChange={(value) => setCargaMental(Number(value) as CargaMental)}
               >
-                <SelectTrigger className="w-[150px] h-8">
-                  <Brain className="w-3 h-3 mr-1" />
+                <SelectTrigger className="w-[140px] h-8 bg-white/5 border-white/10 text-[10px] uppercase font-bold tracking-wider">
+                  <Brain className="w-3 h-3 mr-2 text-sky-400" />
                   <SelectValue placeholder="Carga mental" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">Carga 1 - Leve</SelectItem>
-                  <SelectItem value="2">Carga 2</SelectItem>
-                  <SelectItem value="3">Carga 3 - Moderada</SelectItem>
-                  <SelectItem value="4">Carga 4</SelectItem>
-                  <SelectItem value="5">Carga 5 - Intensa</SelectItem>
+                <SelectContent className="bg-[#18181b] border-white/10 text-white">
+                  <SelectItem value="1">1 - LEVE</SelectItem>
+                  <SelectItem value="2">2 - BAIXA</SelectItem>
+                  <SelectItem value="3">3 - MODERADA</SelectItem>
+                  <SelectItem value="4">4 - ALTA</SelectItem>
+                  <SelectItem value="5">5 - INTENSA</SelectItem>
                 </SelectContent>
               </Select>
             </div>

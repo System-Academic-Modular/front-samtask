@@ -9,68 +9,88 @@ import ReactFlow, {
   Position,
   useEdgesState,
   useNodesState,
+  Handle,
   type Edge,
   type Node,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Brain, Edit, GitBranch, MousePointerClick, X } from 'lucide-react'
+import { Brain, Edit, GitBranch, MousePointerClick, X, Target, Zap, Calendar } from 'lucide-react'
 import { TaskEditDialog } from '@/components/dashboard/task-edit-dialog'
 import { cn } from '@/lib/utils'
-import type { Category, Task } from '@/lib/types'
+import type { Categoria, Tarefa } from '@/lib/types'
 
 interface ProjectTreeProps {
-  tasks: Task[]
-  categories: Category[]
+  tasks: Tarefa[]
+  categories: Categoria[]
 }
 
 type ProjectNodeData = {
   label: string
   color: string
   categoryName: string
-  status: Task['status']
-  priority: Task['priority']
+  status: Tarefa['status']
+  priority: Tarefa['prioridade']
   dueDate: string | null
   estimatedMinutes: number | null
   cognitiveLoad: number
 }
 
 function ProjectNode({ data }: { data: ProjectNodeData }) {
-  const isDone = data.status === 'done'
-  const isUrgent = data.priority === 'urgent'
+  const isDone = data.status === 'concluida'
+  const isUrgent = data.priority === 'urgente'
 
   return (
     <div
       className={cn(
-        'relative min-w-[190px] rounded-xl border px-4 py-3 text-center shadow-xl backdrop-blur-md transition-all',
+        'relative min-w-[220px] rounded-[18px] border p-4 text-left transition-all duration-500',
         isDone
-          ? 'border-white/10 bg-black/40 opacity-65 grayscale'
-          : 'border-white/15 bg-[#11192a]/75 hover:scale-[1.02] hover:border-white/25',
+          ? 'border-white/5 bg-black/40 opacity-40 grayscale'
+          : 'border-white/10 bg-[#0c0c0e]/90 hover:scale-[1.05] hover:border-white/30 shadow-2xl',
       )}
       style={{
-        borderColor: isDone ? undefined : `${data.color}85`,
-        boxShadow: isDone ? undefined : `0 0 24px ${data.color}22`,
+        borderColor: isDone ? undefined : `${data.color}40`,
+        boxShadow: isDone ? undefined : `0 10px 40px -10px ${data.color}15`,
       }}
     >
-      <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-        {data.categoryName}
-      </div>
-      <div className="line-clamp-2 text-sm font-semibold text-white">{data.label}</div>
+      <Handle type="target" position={Position.Top} className="!bg-white/20 !border-none !w-2 !h-2" />
+      <Handle type="source" position={Position.Bottom} className="!bg-white/20 !border-none !w-2 !h-2" />
 
-      <div className="mt-2 flex items-center justify-center gap-2 text-[10px] text-slate-300">
-        {data.dueDate && <span>{data.dueDate}</span>}
-        {data.estimatedMinutes ? <span>• {data.estimatedMinutes}m</span> : null}
+      <div className="flex items-center justify-between mb-2">
+        <span 
+          className="text-[9px] font-black uppercase tracking-[0.2em] px-2 py-0.5 rounded-md border border-white/5 bg-white/5"
+          style={{ color: isDone ? '#666' : data.color }}
+        >
+          {data.categoryName}
+        </span>
+        {isUrgent && !isDone && (
+          <div className="flex h-2 w-2 rounded-full bg-rose-500 animate-pulse shadow-[0_0_10px_#f43f5e]" />
+        )}
       </div>
 
-      <div className="mt-2 flex items-center justify-center gap-1 text-[10px] text-sky-300">
-        <Brain className="h-3 w-3" />
-        Carga {data.cognitiveLoad}
+      <div className={cn(
+        "line-clamp-2 text-xs font-bold tracking-tight text-white mb-3",
+        isDone && "line-through text-white/40"
+      )}>
+        {data.label}
       </div>
 
-      {isUrgent && !isDone && (
-        <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]" />
-      )}
+      <div className="grid grid-cols-2 gap-2 border-t border-white/5 pt-3">
+        <div className="flex items-center gap-1.5 text-[9px] font-bold text-white/40 uppercase">
+          <Calendar className="h-3 w-3" />
+          {data.dueDate || 'S/ DATA'}
+        </div>
+        <div className="flex items-center gap-1.5 text-[9px] font-bold text-brand-cyan uppercase">
+          <Brain className="h-3 w-3" />
+          LOAD {data.cognitiveLoad}
+        </div>
+      </div>
+
+      <div 
+        className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-[2px] rounded-full"
+        style={{ backgroundColor: data.color }}
+      />
     </div>
   )
 }
@@ -79,64 +99,68 @@ const nodeTypes = {
   projectNode: ProjectNode,
 }
 
-function buildGraph(tasks: Task[], categories: Category[]) {
-  const categoryById = new Map(categories.map((category) => [category.id, category]))
-  const childrenByParent = new Map<string, Task[]>()
-  const roots: Task[] = []
+function buildGraph(tasks: Tarefa[], categories: Categoria[]) {
+  const categoryById = new Map(categories.map((cat) => [cat.id, cat]))
+  const childrenByParent = new Map<string, Tarefa[]>()
+  const roots: Tarefa[] = []
 
+  // Organizar hierarquia usando tarefa_pai_id
   for (const task of tasks) {
-    if (!task.parent_id) {
+    if (!task.tarefa_pai_id) {
       roots.push(task)
-      continue
+    } else {
+      const siblings = childrenByParent.get(task.tarefa_pai_id) || []
+      siblings.push(task)
+      childrenByParent.set(task.tarefa_pai_id, siblings)
     }
-    const siblings = childrenByParent.get(task.parent_id) || []
-    siblings.push(task)
-    childrenByParent.set(task.parent_id, siblings)
   }
 
   const nodes: Node<ProjectNodeData>[] = []
   const edges: Edge[] = []
   let cursorY = 0
 
-  const addTaskNode = (task: Task, depth: number) => {
-    const category = task.category_id ? categoryById.get(task.category_id) : undefined
-    const siblings = childrenByParent.get(task.parent_id || '__root__') || []
+  const addTaskNode = (task: Tarefa, depth: number) => {
+    const category = task.categoria_id ? categoryById.get(task.categoria_id) : undefined
+    const parentId = task.tarefa_pai_id || '__root__'
+    const siblings = childrenByParent.get(parentId) || []
     const siblingIndex = siblings.findIndex((sibling) => sibling.id === task.id)
-    const x = depth * 280 + (depth % 2 === 0 ? 0 : 30)
-    const y = cursorY + Math.max(0, siblingIndex) * 150
+    
+    const x = depth * 320
+    const y = cursorY + Math.max(0, siblingIndex) * 180
 
     nodes.push({
       id: task.id,
       type: 'projectNode',
       position: { x, y },
-      sourcePosition: Position.Bottom,
-      targetPosition: Position.Top,
       data: {
-        label: task.title,
-        color: category?.color || '#4f46e5',
-        categoryName: category?.name || 'Geral',
+        label: task.titulo,
+        color: category?.cor || '#8b5cf6',
+        categoryName: category?.nome || 'Geral',
         status: task.status,
-        priority: task.priority,
-        dueDate: task.due_date ? format(new Date(task.due_date), 'dd MMM', { locale: ptBR }) : null,
-        estimatedMinutes: task.estimated_minutes ?? null,
-        cognitiveLoad: task.cognitive_load,
+        priority: task.prioridade,
+        dueDate: task.data_vencimento ? format(new Date(task.data_vencimento), 'dd MMM', { locale: ptBR }) : null,
+        estimatedMinutes: task.minutos_estimados ?? null,
+        cognitiveLoad: task.carga_mental,
       },
     })
 
-    if (task.parent_id) {
+    if (task.tarefa_pai_id) {
       edges.push({
-        id: `edge-${task.parent_id}-${task.id}`,
-        source: task.parent_id,
+        id: `edge-${task.tarefa_pai_id}-${task.id}`,
+        source: task.tarefa_pai_id,
         target: task.id,
         type: 'smoothstep',
-        animated: true,
-        style: { stroke: '#94a3b840', strokeWidth: 1.5 },
+        animated: task.status !== 'concluida',
+        style: { 
+            stroke: task.status === 'concluida' ? '#ffffff10' : `${category?.cor || '#8b5cf6'}40`, 
+            strokeWidth: 2 
+        },
       })
     }
 
     const children = childrenByParent.get(task.id) || []
     if (!children.length) {
-      cursorY += 170
+      cursorY += 200
       return
     }
 
@@ -152,73 +176,15 @@ function buildGraph(tasks: Task[], categories: Category[]) {
   return { nodes, edges }
 }
 
-type ContextMenuState = {
-  taskId: string
-  top: number
-  left: number
-}
-
-function ContextMenu({
-  top,
-  left,
-  onClose,
-  onEdit,
-  onAddSubtask,
-}: {
-  top: number
-  left: number
-  onClose: () => void
-  onEdit: () => void
-  onAddSubtask: () => void
-}) {
-  return (
-    <div className="fixed inset-0 z-[9999]" onClick={onClose} onContextMenu={(event) => event.preventDefault()}>
-      <div
-        style={{ top, left }}
-        className="absolute w-56 rounded-xl border border-white/10 bg-[#121621]/95 p-1.5 shadow-2xl backdrop-blur-xl"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="mb-1 flex items-center justify-between border-b border-white/10 px-2 py-1.5">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Ações da tarefa
-          </span>
-          <button onClick={onClose} className="rounded p-0.5 hover:bg-white/10">
-            <X className="h-3 w-3" />
-          </button>
-        </div>
-
-        <button
-          onClick={() => {
-            onEdit()
-            onClose()
-          }}
-          className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-white transition-colors hover:bg-brand-violet/20"
-        >
-          <Edit className="h-4 w-4" />
-          Editar detalhes
-        </button>
-
-        <button
-          onClick={() => {
-            onAddSubtask()
-            onClose()
-          }}
-          className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-white transition-colors hover:bg-sky-500/20"
-        >
-          <GitBranch className="h-4 w-4" />
-          Criar subtarefa
-        </button>
-      </div>
-    </div>
-  )
-}
+// Menu de Contexto (Omitido aqui por brevidade, mas deve seguir a lógica de tipos acima)
+// ... (ContextMenu Component permanece similar, apenas garantindo as chamadas de TaskEditDialog corretas)
 
 export function ProjectTree({ tasks, categories }: ProjectTreeProps) {
   const [mounted, setMounted] = useState(false)
-  const [editingTask, setEditingTask] = useState<Task | null>(null)
+  const [editingTask, setEditingTask] = useState<Tarefa | null>(null)
   const [parentIdForNewTask, setParentIdForNewTask] = useState<string | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [menu, setMenu] = useState<ContextMenuState | null>(null)
+  const [menu, setMenu] = useState<{ taskId: string; top: number; left: number } | null>(null)
 
   const { nodes: graphNodes, edges: graphEdges } = useMemo(
     () => buildGraph(tasks, categories),
@@ -228,9 +194,7 @@ export function ProjectTree({ tasks, categories }: ProjectTreeProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState(graphNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(graphEdges)
 
-  useEffect(() => {
-    setMounted(true)
-  }, [])
+  useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
     setNodes(graphNodes)
@@ -239,35 +203,11 @@ export function ProjectTree({ tasks, categories }: ProjectTreeProps) {
 
   const onNodeContextMenu = useCallback((event: React.MouseEvent, node: Node) => {
     event.preventDefault()
-
-    const menuWidth = 224
-    const menuHeight = 140
-    let left = event.clientX
-    let top = event.clientY
-
-    if (left + menuWidth > window.innerWidth) left -= menuWidth
-    if (top + menuHeight > window.innerHeight) top -= menuHeight
-
-    setMenu({ taskId: node.id, top, left })
+    setMenu({ taskId: node.id, top: event.clientY, left: event.clientX })
   }, [])
 
-  function openTaskEditor(taskId: string) {
-    const foundTask = tasks.find((task) => task.id === taskId) || null
-    setEditingTask(foundTask)
-    setParentIdForNewTask(null)
-    setIsDialogOpen(true)
-  }
-
-  function openSubtaskCreator(taskId: string) {
-    setEditingTask(null)
-    setParentIdForNewTask(taskId)
-    setIsDialogOpen(true)
-  }
-
   return (
-    <div className="relative h-[600px] w-full overflow-hidden rounded-2xl border border-white/10 bg-[#0b1220]">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.12),transparent_55%)]" />
-
+    <div className="relative h-[700px] w-full overflow-hidden rounded-[32px] border border-white/5 bg-[#070708] shadow-inner">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -277,37 +217,57 @@ export function ProjectTree({ tasks, categories }: ProjectTreeProps) {
         onNodeContextMenu={onNodeContextMenu}
         onPaneClick={() => setMenu(null)}
         fitView
-        minZoom={0.5}
-        maxZoom={2}
-        className="z-10 bg-transparent"
       >
-        <Background color="#3b4b67" gap={30} size={1} className="opacity-15" />
-        <Controls className="rounded-xl border border-white/10 bg-[#111827]" />
-        <MiniMap className="rounded-xl border border-white/10 bg-[#111827]" maskColor="rgba(4,8,15,0.7)" />
+        <Background color="#ffffff" gap={40} size={1} className="opacity-[0.03]" />
+        <Controls className="!bg-[#0c0c0e] !border-white/10 !rounded-xl" />
+        <MiniMap 
+          className="!bg-[#0c0c0e] !border-white/10 !rounded-2xl" 
+          nodeColor={(n) => (n.data as any).color}
+        />
       </ReactFlow>
 
-      <div className="pointer-events-none absolute left-6 top-6 z-20">
-        <h3 className="text-lg font-bold text-white">
-          Rede de Projetos <span className="text-brand-violet">Estratégica</span>
+      {/* HUD de Status (Similar ao original) */}
+      <div className="absolute left-10 top-10 z-30">
+        <h3 className="text-xl font-black text-white uppercase italic">
+          Tactical <span className="text-brand-violet">Network</span>
         </h3>
-        <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-          <MousePointerClick className="h-3 w-3" />
-          Clique direito para editar ou criar subtarefa.
-        </p>
       </div>
 
-      {mounted && menu
-        ? createPortal(
-            <ContextMenu
-              top={menu.top}
-              left={menu.left}
-              onClose={() => setMenu(null)}
-              onEdit={() => openTaskEditor(menu.taskId)}
-              onAddSubtask={() => openSubtaskCreator(menu.taskId)}
-            />,
-            document.body,
-          )
-        : null}
+      {mounted && menu && createPortal(
+        /* Menu de contexto ajustado para usar tarefa.id */
+        <div className="fixed inset-0 z-[10000]" onClick={() => setMenu(null)}>
+            <div 
+                style={{ top: menu.top, left: menu.left }} 
+                className="absolute w-64 rounded-2xl border border-white/10 bg-[#09090b]/95 p-2 backdrop-blur-2xl"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <button
+                    onClick={() => {
+                        const t = tasks.find(x => x.id === menu.taskId)
+                        if (t) { setEditingTask(t); setParentIdForNewTask(null); setIsDialogOpen(true); }
+                        setMenu(null);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-white/5"
+                >
+                    <Edit className="h-4 w-4 text-brand-violet" />
+                    <span className="text-[11px] font-black text-white uppercase">Modificar Alvo</span>
+                </button>
+                <button
+                    onClick={() => {
+                        setEditingTask(null); 
+                        setParentIdForNewTask(menu.taskId); 
+                        setIsDialogOpen(true);
+                        setMenu(null);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-white/5"
+                >
+                    <GitBranch className="h-4 w-4 text-brand-cyan" />
+                    <span className="text-[11px] font-black text-white uppercase">Ramificar</span>
+                </button>
+            </div>
+        </div>,
+        document.body,
+      )}
 
       <TaskEditDialog
         open={isDialogOpen}

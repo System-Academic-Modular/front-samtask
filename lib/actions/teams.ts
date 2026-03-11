@@ -50,12 +50,12 @@ export async function createTeam(prevState: TeamActionState, formData: FormData)
 
   // 1. Criar o time
   const { data: team, error: teamError } = await supabase
-    .from('teams')
+    .from('equipes') // ATUALIZADO
     .insert({
-      name: data.name,
-      description: data.description,
-      owner_id: user.id,
-      invite_code: inviteCode
+      nome: data.name, // ATUALIZADO
+      descricao: data.description,
+      dono_id: user.id, // ATUALIZADO
+      codigo_convite: inviteCode // ATUALIZADO
     })
     .select()
     .single()
@@ -67,11 +67,11 @@ export async function createTeam(prevState: TeamActionState, formData: FormData)
 
   // 2. Adicionar o criador como Dono/Admin
   const { error: memberError } = await supabase
-    .from('team_members')
+    .from('membros_equipe') // ATUALIZADO
     .insert({
-      team_id: team.id,
-      user_id: user.id,
-      role: 'admin' // Mudado para 'admin' para bater com a lógica da UI (que checa role === 'admin')
+      equipe_id: team.id, // ATUALIZADO
+      usuario_id: user.id, // ATUALIZADO
+      papel: 'admin' 
     })
 
   if (memberError) {
@@ -99,9 +99,9 @@ export async function joinTeam(prevState: TeamActionState, formData: FormData): 
 
   // 1. Buscar time pelo código direto na tabela
   const { data: team, error: teamError } = await supabase
-    .from('teams')
-    .select('id, name')
-    .eq('invite_code', code)
+    .from('equipes') // ATUALIZADO
+    .select('id, nome') // ATUALIZADO
+    .eq('codigo_convite', code) // ATUALIZADO
     .single()
 
   if (teamError || !team) {
@@ -110,10 +110,10 @@ export async function joinTeam(prevState: TeamActionState, formData: FormData): 
 
   // 2. Verificar se já é membro
   const { data: existingMember } = await supabase
-    .from('team_members')
+    .from('membros_equipe') // ATUALIZADO
     .select('id')
-    .eq('team_id', team.id)
-    .eq('user_id', user.id)
+    .eq('equipe_id', team.id) // ATUALIZADO
+    .eq('usuario_id', user.id) // ATUALIZADO
     .single()
 
   if (existingMember) {
@@ -122,11 +122,11 @@ export async function joinTeam(prevState: TeamActionState, formData: FormData): 
 
   // 3. Entrar no time
   const { error: joinError } = await supabase
-    .from('team_members')
+    .from('membros_equipe') // ATUALIZADO
     .insert({
-      team_id: team.id,
-      user_id: user.id,
-      role: 'member'
+      equipe_id: team.id, // ATUALIZADO
+      usuario_id: user.id, // ATUALIZADO
+      papel: 'membro' // ATUALIZADO
     })
 
   if (joinError) {
@@ -134,26 +134,24 @@ export async function joinTeam(prevState: TeamActionState, formData: FormData): 
   }
 
   revalidatePath('/dashboard/teams')
-  return { status: 'success', message: `Bem-vindo à equipe ${team.name}!` }
+  return { status: 'success', message: `Bem-vindo à equipe ${team.nome}!` }
 }
 
 // --- REGENERAR CÓDIGO (NOVO) ---
-// Essa função não usa prevState pois é chamada via onClick, não form submit
 export async function regenerateTeamCode(teamId: string) {
   const supabase = await createClient()
   
-  // Verifica se o usuário é admin desse time antes de mudar
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Não autorizado' }
 
   const { data: member } = await supabase
-    .from('team_members')
-    .select('role')
-    .eq('team_id', teamId)
-    .eq('user_id', user.id)
+    .from('membros_equipe') // ATUALIZADO
+    .select('papel') // ATUALIZADO
+    .eq('equipe_id', teamId) // ATUALIZADO
+    .eq('usuario_id', user.id) // ATUALIZADO
     .single()
 
-  if (member?.role !== 'admin' && member?.role !== 'owner') {
+  if (member?.papel !== 'admin' && member?.papel !== 'owner' && member?.papel !== 'dono') { // ATUALIZADO
     return { error: 'Apenas admins podem regenerar o código.' }
   }
 
@@ -161,8 +159,8 @@ export async function regenerateTeamCode(teamId: string) {
   const newCode = Math.random().toString(36).substring(2, 8).toUpperCase()
 
   const { error } = await supabase
-    .from('teams')
-    .update({ invite_code: newCode })
+    .from('equipes') // ATUALIZADO
+    .update({ codigo_convite: newCode }) // ATUALIZADO
     .eq('id', teamId)
 
   if (error) return { error: 'Erro ao atualizar código' }

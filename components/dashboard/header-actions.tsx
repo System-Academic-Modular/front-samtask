@@ -2,11 +2,11 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Bell, Search, UploadCloud, Target, CheckCircle2, Flame, Users, BookHeart } from 'lucide-react'
+import { Bell, Search, UploadCloud, Target, CheckCircle2, Flame, Users, Code2, Activity } from 'lucide-react'
 import { TaskEditDialog } from '@/components/dashboard/task-edit-dialog'
 import { ImportTasksDialog } from '@/components/dashboard/import-tasks-dialog'
 import { ZenMode } from '@/components/dashboard/zen-mode'
-import { Category } from '@/lib/types'
+import type { Categoria } from '@/lib/types'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,11 +15,12 @@ import {
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
+// Notificações injetadas com o contexto do seu ecossistema
 const mockNotifications = [
   {
     id: 1,
-    title: 'Novo Workspace',
-    description: 'Você foi adicionado ao time "Ateliê Aflorar Doces".',
+    title: 'Integração de Equipa',
+    description: 'Sincronização concluída com o workspace "Ateliê Aflorar Doces".',
     time: 'Agora mesmo',
     icon: Users,
     color: 'text-brand-cyan',
@@ -28,8 +29,8 @@ const mockNotifications = [
   },
   {
     id: 2,
-    title: 'Tarefa Concluída',
-    description: 'Gabriela moveu "Revisar paleta de cores" para Concluído.',
+    title: 'Missão Atualizada',
+    description: 'Gabriela alterou o status do planejamento financeiro para Concluído.',
     time: 'Há 10 min',
     icon: CheckCircle2,
     color: 'text-brand-emerald',
@@ -38,8 +39,8 @@ const mockNotifications = [
   },
   {
     id: 3,
-    title: 'Meta Atingida! 🔥',
-    description: 'Incrível! Você alcançou 3 dias seguidos de foco.',
+    title: 'Overclock Mental! 🔥',
+    description: 'Sistemas registam 3 dias consecutivos de hiperfoco.',
     time: 'Há 2 horas',
     icon: Flame,
     color: 'text-orange-500',
@@ -48,17 +49,17 @@ const mockNotifications = [
   },
   {
     id: 4,
-    title: 'Lembrete de Projeto',
-    description: 'Não esqueça de escrever o próximo capítulo do livro hoje.',
+    title: 'Alerta de Repositório',
+    description: 'Revisão de arquitetura pendente no projeto SAM (Sistema Acadêmico Modular).',
     time: 'Há 5 horas',
-    icon: BookHeart,
+    icon: Code2,
     color: 'text-brand-rose',
     bg: 'bg-brand-rose/10',
     unread: false,
   }
 ]
 
-export function HeaderActions({ categories }: { categories: Category[] }) {
+export function HeaderActions({ categories }: { categories: Categoria[] }) {
   const [open, setOpen] = useState(false)
   const [zenModeOpen, setZenModeOpen] = useState(false)
   const [notifications, setNotifications] = useState(mockNotifications)
@@ -74,96 +75,102 @@ export function HeaderActions({ categories }: { categories: Category[] }) {
   }
 
   return (
-    <div className="flex items-center gap-1.5 md:gap-4">
+    <div className="flex items-center gap-2 md:gap-4">
       
-      {/* Botão Modo Zen - Corrigido para Mobile */}
+      {/* Botão Modo Zen - Estética Tática */}
       <Button 
         variant="outline" 
         size="sm" 
         onClick={() => setZenModeOpen(true)}
         className={cn(
-          "border-brand-violet/30 bg-brand-violet/10 text-brand-violet gap-2 transition-all",
-          "hover:bg-brand-violet/20 hover:scale-105 active:scale-95 shadow-neon-small",
-          "px-2 md:px-3" // Menor no mobile
+          "border-brand-violet/40 bg-brand-violet/10 text-brand-violet gap-2 transition-all duration-300",
+          "hover:bg-brand-violet hover:text-white hover:scale-105 active:scale-95 shadow-[0_0_15px_rgba(139,92,246,0.2)] hover:shadow-[0_0_25px_rgba(139,92,246,0.5)]",
+          "px-3 md:px-4 h-9 rounded-xl font-black uppercase tracking-widest text-[10px]"
         )}
       >
-        <Target className="w-4 h-4" />
-        <span className="hidden sm:inline">Modo Zen</span> {/* Esconde o texto em telas muito pequenas */}
+        <Target className="w-4 h-4 animate-pulse" />
+        <span className="hidden sm:inline">MODO ZEN</span>
       </Button>
 
-      {/* Botão de Importação - Também habilitado para Mobile */}
+      {/* Botão de Importação da Inteligência Artificial */}
       <ImportTasksDialog 
         categories={categories}
         trigger={
             <Button 
               variant="outline" 
               size="icon" 
-              className="border-white/10 hover:bg-white/5 hover:border-brand-cyan/50 hover:text-brand-cyan transition-all" 
-              title="Importar da Reunião"
+              className="h-9 w-9 rounded-xl border-white/10 bg-black/40 backdrop-blur-md hover:bg-brand-cyan/20 hover:border-brand-cyan/50 hover:text-brand-cyan hover:shadow-[0_0_15px_rgba(6,182,212,0.3)] transition-all hover:scale-105" 
+              title="Importar Missões (IA)"
             >
                 <UploadCloud className="w-4 h-4" />
             </Button>
         }
       />
 
-      <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-white hidden xs:flex">
-        <Search className="w-5 h-5" />
+      <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl text-muted-foreground hover:text-white hover:bg-white/10 transition-all hidden xs:flex">
+        <Search className="w-4 h-4" />
       </Button>
       
-      {/* CENTRAL DE NOTIFICAÇÕES */}
+      {/* CENTRAL DE NOTIFICAÇÕES (O HUD) */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-white relative">
-            <Bell className="w-5 h-5" />
+          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl text-muted-foreground hover:text-white hover:bg-white/10 relative transition-all group">
+            <Bell className="w-4 h-4 group-hover:animate-swing" />
             {unreadCount > 0 && (
-              <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-brand-rose rounded-full border-2 border-[#09090b] animate-pulse" />
+              <>
+                <span className="absolute top-2 right-2 w-2 h-2 bg-brand-rose rounded-full border border-[#09090b] z-10" />
+                <span className="absolute top-2 right-2 w-2 h-2 bg-brand-rose rounded-full animate-ping opacity-75" />
+              </>
             )}
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-[calc(100vw-32px)] sm:w-96 bg-[#121214]/95 backdrop-blur-xl border-white/10 p-0 shadow-2xl mt-2 z-[60]">
+        <DropdownMenuContent align="end" className="w-[calc(100vw-32px)] sm:w-[400px] bg-[#0c0c0e]/95 backdrop-blur-2xl border-white/10 p-0 shadow-[0_0_50px_rgba(0,0,0,0.5)] rounded-2xl mt-2 z-[60] overflow-hidden">
           
-          <div className="flex items-center justify-between p-4 border-b border-white/5 bg-white/[0.02]">
-            <h3 className="font-semibold text-white">Notificações</h3>
+          <div className="flex items-center justify-between p-4 border-b border-white/5 bg-gradient-to-r from-white/[0.05] to-transparent">
+            <h3 className="text-[11px] font-black text-white uppercase tracking-[0.2em] flex items-center gap-2">
+              <Activity className="w-4 h-4 text-brand-violet" />
+              Painel de Alertas
+            </h3>
             {unreadCount > 0 && (
               <Button 
                 variant="ghost" 
                 size="sm" 
                 onClick={markAllAsRead} 
-                className="h-auto p-0 text-xs text-brand-violet hover:text-brand-violet/80 hover:bg-transparent"
+                className="h-auto p-0 text-[9px] font-black uppercase tracking-widest text-brand-cyan hover:text-brand-cyan/80 hover:bg-transparent transition-colors"
               >
-                Limpar
+                PURGAR DADOS
               </Button>
             )}
           </div>
           
-          <ScrollArea className="h-[350px]">
+          <ScrollArea className="h-[380px] bg-black/20">
             {notifications.length > 0 ? (
               <div className="flex flex-col">
                 {notifications.map((notification) => (
                   <div 
                     key={notification.id} 
                     className={cn(
-                      "flex items-start gap-4 p-4 border-b border-white/5 transition-colors hover:bg-white/[0.04] cursor-pointer relative overflow-hidden",
+                      "flex items-start gap-4 p-4 border-b border-white/5 transition-all duration-300 hover:bg-white/[0.04] cursor-pointer relative group",
                       notification.unread ? "bg-brand-violet/5" : ""
                     )}
                     onClick={() => markAsRead(notification.id)}
                   >
                     {notification.unread && (
-                        <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-brand-violet" />
+                        <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-brand-violet shadow-[0_0_10px_var(--brand-violet)]" />
                     )}
 
-                    <div className={cn("w-10 h-10 rounded-full flex items-center justify-center shrink-0", notification.bg, notification.color)}>
+                    <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border border-white/5 shadow-inner transition-transform group-hover:scale-110", notification.bg, notification.color)}>
                       <notification.icon className="w-5 h-5" />
                     </div>
                     
-                    <div className="flex-1 space-y-1">
+                    <div className="flex-1 space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <p className={cn("text-sm font-medium leading-none", notification.unread ? "text-white" : "text-white/80")}>
+                        <p className={cn("text-xs font-bold uppercase tracking-wider leading-none", notification.unread ? "text-white" : "text-white/60")}>
                             {notification.title}
                         </p>
-                        <span className="text-[10px] text-muted-foreground shrink-0 ml-2">{notification.time}</span>
+                        <span className="text-[9px] text-muted-foreground font-mono shrink-0 ml-2 bg-white/5 px-1.5 py-0.5 rounded-md">{notification.time}</span>
                       </div>
-                      <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed pr-2">
+                      <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed pr-2 font-medium">
                         {notification.description}
                       </p>
                     </div>
@@ -171,15 +178,16 @@ export function HeaderActions({ categories }: { categories: Category[] }) {
                 ))}
               </div>
             ) : (
-              <div className="p-8 text-center text-muted-foreground flex flex-col items-center justify-center h-full">
-                <CheckCircle2 className="w-10 h-10 mb-3 opacity-20" />
-                <p className="text-sm font-medium text-white/70">Tudo limpo!</p>
+              <div className="p-12 text-center flex flex-col items-center justify-center h-full border-dashed border-white/5 m-4 rounded-2xl bg-white/[0.01]">
+                <CheckCircle2 className="w-12 h-12 mb-4 text-muted-foreground/20" />
+                <p className="text-[11px] font-black uppercase tracking-widest text-white/50">Radar Limpo</p>
+                <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-widest">Nenhuma anomalia detetada.</p>
               </div>
             )}
           </ScrollArea>
           
-          <div className="p-2 border-t border-white/5 bg-black/20 text-center">
-            <p className="text-[10px] text-muted-foreground py-1 font-bold tracking-widest uppercase">Protocolo Arthur OS</p>
+          <div className="p-3 border-t border-white/5 bg-black/40 text-center backdrop-blur-md">
+            <p className="text-[9px] text-brand-violet/50 font-black tracking-[0.3em] uppercase">FocusOS // Terminal Ativo</p>
           </div>
 
         </DropdownMenuContent>

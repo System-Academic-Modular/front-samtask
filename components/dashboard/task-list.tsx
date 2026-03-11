@@ -5,7 +5,6 @@ import type { Tarefa, Categoria } from '@/lib/types'
 import { TaskItem } from './task-item'
 import { TaskEditDialog } from './task-edit-dialog'
 import { Target, CheckCircle2 } from 'lucide-react'
-import { cn } from '@/lib/utils'
 
 interface TaskListProps {
   tasks: Tarefa[]
@@ -16,11 +15,9 @@ interface TaskListProps {
 export function TaskList({ tasks, categories, showCompleted }: TaskListProps) {
   const [editingTask, setEditingTask] = useState<Tarefa | null>(null)
 
-  // Empty State Tático (Modo Radar)
   if (tasks.length === 0) {
     return (
       <div className="relative flex flex-col items-center justify-center py-20 px-4 border border-dashed border-white/10 rounded-[32px] bg-black/20 text-center backdrop-blur-md overflow-hidden group transition-all duration-500 hover:border-white/20">
-        {/* Efeito de Radar/Glow sutil no fundo ao passar o mouse */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,var(--brand-violet)_0,transparent_60%)] opacity-0 group-hover:opacity-5 transition-opacity duration-1000 pointer-events-none" />
         
         <div className="relative w-20 h-20 bg-white/[0.02] border border-white/5 rounded-full flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(255,255,255,0.02)] group-hover:shadow-[0_0_30px_var(--brand-glow)] transition-all duration-700">
@@ -45,7 +42,6 @@ export function TaskList({ tasks, categories, showCompleted }: TaskListProps) {
 
   return (
     <>
-      {/* Container com gap levemente maior para as baterias de energia respirarem */}
       <div className="space-y-4">
         {tasks.map((task, index) => (
           <div 

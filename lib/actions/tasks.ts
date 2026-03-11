@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import type { Task, TaskPriority, TaskStatus } from '@/lib/types'
+import type { Tarefa, PrioridadeTarefa, StatusTarefa } from '@/lib/types'
 
 // ----------------------------------------------------------------------
 // CONSTANTES E CONFIGURAÇÕES TÁTICAS
@@ -10,32 +10,32 @@ import type { Task, TaskPriority, TaskStatus } from '@/lib/types'
 
 const TASK_SELECT = `
   *,
-  category:categories(id, name, color),
-  assignee:profiles!assignee_id(id, full_name, avatar_url)
+  categoria:categorias(id, nome, cor),
+  atribuido:perfis!atribuido_a(id, nome_completo, avatar_url)
 `
 
 // Algoritmo de Repetição Espaçada Padrão (Dias)
 const REVIEW_INTERVALS = [7, 30] as const
 
 // Multiplicadores de Gamificação
-const PRIORITY_MULTIPLIER: Record<TaskPriority, number> = {
-  low: 1.0,
-  medium: 1.2,
-  high: 1.5,
-  urgent: 2.0,
+const PRIORITY_MULTIPLIER: Record<PrioridadeTarefa, number> = {
+  baixa: 1.0,
+  media: 1.2,
+  alta: 1.5,
+  urgente: 2.0,
 }
 
 // ----------------------------------------------------------------------
 // FUNÇÕES AUXILIARES (HELPERS)
 // ----------------------------------------------------------------------
 
-function normalizePriority(priority?: TaskPriority | null): TaskPriority {
-  if (!priority) return 'medium'
-  return priority === 'urgent' ? 'high' : priority
+function normalizePriority(priority?: PrioridadeTarefa | null): PrioridadeTarefa {
+  if (!priority) return 'media'
+  return priority === 'urgente' ? 'alta' : priority
 }
 
 function getBaseTitle(title: string) {
-  // Limpa prefixos de revisões anteriores para não acumular "Revisão · Revisão · Título"
+  // Limpa prefixos de revisões anteriores para não acumular
   return title.replace(/^(Revisão Espaçada · |Revisão Rápida · |Revisao Rapida · )+/, '')
 }
 
@@ -47,7 +47,7 @@ async function awardTaskXP(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
   cognitiveLoad: number,
-  priority: TaskPriority
+  priority: PrioridadeTarefa
 ) {
   // Cálculo: Base (10) * Carga Mental (1 a 5) * Multiplicador de Prioridade
   const baseXP = 10
@@ -55,15 +55,15 @@ async function awardTaskXP(
 
   // Puxa o perfil atual
   const { data: profile } = await supabase
-    .from('profiles')
-    .select('id, xp, current_level')
+    .from('perfis')
+    .select('id, xp, nivel_atual')
     .eq('id', userId)
     .single()
 
   if (!profile) return
 
   const currentXP = profile.xp || 0
-  let currentLevel = profile.current_level || 1
+  let currentLevel = profile.nivel_atual || 1
   const newXP = currentXP + earnedXP
 
   // Lógica de Level Up (Exemplo: 100 XP para o Nível 2, 300 para Nível 3, etc)
@@ -74,8 +74,8 @@ async function awardTaskXP(
 
   // Salva no banco
   await supabase
-    .from('profiles')
-    .update({ xp: newXP, current_level: currentLevel })
+    .from('perfis')
+    .update({ xp: newXP, nivel_atual: currentLevel })
     .eq('id', userId)
 }
 
@@ -96,16 +96,16 @@ async function hasReviewTaskForInterval(
   end.setDate(end.getDate() + 1)
 
   let query = supabase
-    .from('tasks')
+    .from('tarefas')
     .select('id')
-    .eq('user_id', userId)
-    .eq('title', title)
-    .gte('due_date', start.toISOString())
-    .lt('due_date', end.toISOString())
+    .eq('usuario_id', userId)
+    .eq('titulo', title)
+    .gte('data_vencimento', start.toISOString())
+    .lt('data_vencimento', end.toISOString())
     .limit(1)
 
-  if (teamId) query = query.eq('team_id', teamId)
-  else query = query.is('team_id', null)
+  if (teamId) query = query.eq('equipe_id', teamId)
+  else query = query.is('equipe_id', null)
 
   const { data } = await query
   return Boolean(data && data.length > 0)
@@ -113,10 +113,10 @@ async function hasReviewTaskForInterval(
 
 async function createSpacedReviewTasks(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  sourceTask: Task,
+  sourceTask: Tarefa,
   completedAtISO: string
 ) {
-  const baseTitle = getBaseTitle(sourceTask.title)
+  const baseTitle = getBaseTitle(sourceTask.titulo)
   const reviewTitle = `Revisão Espaçada · ${baseTitle}`
 
   for (const intervalDays of REVIEW_INTERVALS) {
@@ -125,29 +125,28 @@ async function createSpacedReviewTasks(
 
     const alreadyExists = await hasReviewTaskForInterval(
       supabase,
-      sourceTask.user_id,
+      sourceTask.usuario_id,
       reviewTitle,
       dueDate.toISOString(),
-      sourceTask.team_id
+      sourceTask.equipe_id
     )
 
     if (alreadyExists) continue
 
-    // Insere direto na nova coluna 'review' com carga mental e tempo reduzidos
-    const { error } = await supabase.from('tasks').insert({
-      user_id: sourceTask.user_id,
-      team_id: sourceTask.team_id ?? null,
-      category_id: sourceTask.category_id ?? null,
-      title: reviewTitle,
-      description: sourceTask.description
-        ? `Revisão programada pelo sistema (${intervalDays} dias pós-estudo).\n\nOriginal: ${sourceTask.description}`
+    // Insere direto na nova coluna 'revisao' com carga mental e tempo reduzidos
+    const { error } = await supabase.from('tarefas').insert({
+      usuario_id: sourceTask.usuario_id,
+      equipe_id: sourceTask.equipe_id ?? null,
+      categoria_id: sourceTask.categoria_id ?? null,
+      titulo: reviewTitle,
+      descricao: sourceTask.descricao
+        ? `Revisão programada pelo sistema (${intervalDays} dias pós-estudo).\n\nOriginal: ${sourceTask.descricao}`
         : `Revisão programada pelo sistema (${intervalDays} dias pós-estudo).`,
-      status: 'review', // <--- AGORA VAI PARA A COLUNA NOVA DO KANBAN
-      priority: normalizePriority(sourceTask.priority),
-      due_date: dueDate.toISOString(),
-      estimated_minutes: Math.max(5, Math.floor((sourceTask.estimated_minutes ?? 20) / 2)), // Revisa na metade do tempo
-      is_recurring: false,
-      cognitive_load: Math.max(1, (sourceTask.cognitive_load ?? 3) - 1), // Revisa gasta menos bateria
+      status: 'revisao', 
+      prioridade: normalizePriority(sourceTask.prioridade),
+      data_vencimento: dueDate.toISOString(),
+      minutos_estimados: Math.max(5, Math.floor((sourceTask.minutos_estimados ?? 20) / 2)),
+      carga_mental: Math.max(1, (sourceTask.carga_mental ?? 3) - 1),
     })
 
     if (error) {
@@ -161,8 +160,8 @@ async function createSpacedReviewTasks(
 // ----------------------------------------------------------------------
 
 export async function getTasks(filters?: {
-  status?: TaskStatus[]
-  priority?: TaskPriority[]
+  status?: StatusTarefa[]
+  priority?: PrioridadeTarefa[]
   category_id?: string
   is_today?: boolean
   search?: string
@@ -171,35 +170,34 @@ export async function getTasks(filters?: {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) return { error: 'Acesso negado aos satélites.', data: [] as Task[] }
+  if (!user) return { error: 'Acesso negado aos satélites.', data: [] as Tarefa[] }
 
-  let query = supabase.from('tasks').select(TASK_SELECT).is('parent_id', null)
+  let query = supabase.from('tarefas').select(TASK_SELECT).is('tarefa_pai_id', null)
 
-  if (filters?.team_id) query = query.eq('team_id', filters.team_id)
-  else query = query.eq('user_id', user.id).is('team_id', null)
+  if (filters?.team_id) query = query.eq('equipe_id', filters.team_id)
+  else query = query.eq('usuario_id', user.id).is('equipe_id', null)
 
   if (filters?.status?.length) query = query.in('status', filters.status)
-  if (filters?.priority?.length) query = query.in('priority', filters.priority)
-  if (filters?.category_id) query = query.eq('category_id', filters.category_id)
-  if (filters?.search) query = query.ilike('title', `%${filters.search}%`)
+  if (filters?.priority?.length) query = query.in('prioridade', filters.priority)
+  if (filters?.category_id) query = query.eq('categoria_id', filters.category_id)
+  if (filters?.search) query = query.ilike('titulo', `%${filters.search}%`)
 
   if (filters?.is_today) {
     const start = new Date()
     start.setHours(0, 0, 0, 0)
     const end = new Date(start)
     end.setDate(end.getDate() + 1)
-    query = query.gte('due_date', start.toISOString()).lt('due_date', end.toISOString())
+    query = query.gte('data_vencimento', start.toISOString()).lt('data_vencimento', end.toISOString())
   }
 
   const { data, error } = await query
-    .order('position', { ascending: true })
-    .order('created_at', { ascending: false })
+    .order('criado_em', { ascending: false })
 
-  if (error) return { error: error.message, data: [] as Task[] }
-  return { data: (data || []) as Task[] }
+  if (error) return { error: error.message, data: [] as Tarefa[] }
+  return { data: (data || []) as Tarefa[] }
 }
 
-export async function createTask(data: Partial<Task>) {
+export async function createTask(data: Partial<Tarefa>) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -207,19 +205,19 @@ export async function createTask(data: Partial<Task>) {
 
   const payload = {
     ...data,
-    user_id: user.id,
-    cognitive_load: data.cognitive_load || 3, // Padrão seguro
+    usuario_id: user.id,
+    carga_mental: data.carga_mental || 3, // Padrão seguro
   }
 
-  const { data: task, error } = await supabase.from('tasks').insert(payload).select(TASK_SELECT).single()
+  const { data: task, error } = await supabase.from('tarefas').insert(payload).select(TASK_SELECT).single()
 
   if (error) return { error: error.message }
 
   revalidatePath('/dashboard', 'layout')
-  return { data: task as Task }
+  return { data: task as Tarefa }
 }
 
-export async function updateTask(id: string, data: Partial<Task>) {
+export async function updateTask(id: string, data: Partial<Tarefa>) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -227,7 +225,7 @@ export async function updateTask(id: string, data: Partial<Task>) {
 
   // Busca a tarefa antes de atualizar para comparar estados
   const { data: currentTask, error: currentTaskError } = await supabase
-    .from('tasks')
+    .from('tarefas')
     .select('*')
     .eq('id', id)
     .single()
@@ -236,20 +234,20 @@ export async function updateTask(id: string, data: Partial<Task>) {
 
   const updateData: Record<string, unknown> = {
     ...data,
-    updated_at: new Date().toISOString(),
+    atualizado_em: new Date().toISOString(),
   }
 
-  // Regra de Conclusão: Se mudou para DONE agora
-  const isJustCompleted = data.status === 'done' && currentTask.status !== 'done'
+  // Regra de Conclusão: Se mudou para CONCLUÍDA agora
+  const isJustCompleted = data.status === 'concluida' && currentTask.status !== 'concluida'
   
   if (isJustCompleted) {
-    updateData.completed_at = new Date().toISOString()
-  } else if (data.status && data.status !== 'done') {
-    updateData.completed_at = null
+    updateData.data_conclusao = new Date().toISOString()
+  } else if (data.status && data.status !== 'concluida') {
+    updateData.data_conclusao = null
   }
 
   const { data: updatedTask, error } = await supabase
-    .from('tasks')
+    .from('tarefas')
     .update(updateData)
     .eq('id', id)
     .select(TASK_SELECT)
@@ -262,21 +260,21 @@ export async function updateTask(id: string, data: Partial<Task>) {
     // 1. Injeta XP na conta do usuário
     await awardTaskXP(
       supabase, 
-      currentTask.user_id, 
-      currentTask.cognitive_load || 3, 
-      currentTask.priority || 'medium'
+      currentTask.usuario_id, 
+      currentTask.carga_mental || 3, 
+      currentTask.prioridade || 'media'
     )
 
     // 2. Prepara as sementes de revisão para o futuro
     await createSpacedReviewTasks(
       supabase, 
-      currentTask as Task, 
-      (updatedTask.completed_at as string) || new Date().toISOString()
+      currentTask as Tarefa, 
+      (updatedTask.data_conclusao as string) || new Date().toISOString()
     )
   }
 
   revalidatePath('/dashboard', 'layout')
-  return { data: updatedTask as Task }
+  return { data: updatedTask as Tarefa }
 }
 
 export async function deleteTask(id: string) {
@@ -285,7 +283,7 @@ export async function deleteTask(id: string) {
 
   if (!user) return { error: 'Link Neural perdido.' }
 
-  const { error } = await supabase.from('tasks').delete().eq('id', id)
+  const { error } = await supabase.from('tarefas').delete().eq('id', id)
 
   if (error) return { error: error.message }
 

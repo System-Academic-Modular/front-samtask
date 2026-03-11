@@ -11,75 +11,83 @@ type Palette = {
   sky: string
 }
 
+// Calibração Neon: Cores ajustadas para brilho máximo no Dark Mode
 const accentPalettes: Record<string, Palette> = {
-  violet: {
-    primary: '249 79% 62%',
-    cyan: '193 95% 44%',
-    emerald: '160 84% 39%',
-    rose: '350 89% 60%',
-    amber: '38 92% 50%',
-    sky: '202 94% 53%',
+  violet: { // O Roxo Assinatura do FocusOS
+    primary: '270 100% 65%', // Roxo Neon vibrante
+    cyan: '190 100% 50%',
+    emerald: '150 100% 45%',
+    rose: '340 100% 60%',
+    amber: '40 100% 55%',
+    sky: '200 100% 55%',
   },
   cyan: {
-    primary: '193 95% 44%',
-    cyan: '187 85% 43%',
-    emerald: '161 75% 37%',
-    rose: '339 86% 57%',
-    amber: '35 91% 53%',
-    sky: '201 94% 47%',
+    primary: '190 100% 50%',
+    cyan: '185 100% 45%',
+    emerald: '155 100% 45%',
+    rose: '335 100% 60%',
+    amber: '35 100% 55%',
+    sky: '205 100% 55%',
   },
   emerald: {
-    primary: '160 84% 39%',
-    cyan: '188 88% 40%',
-    emerald: '154 82% 37%',
-    rose: '346 84% 57%',
-    amber: '42 89% 52%',
-    sky: '199 92% 45%',
+    primary: '150 100% 45%',
+    cyan: '185 100% 50%',
+    emerald: '145 100% 40%',
+    rose: '345 100% 60%',
+    amber: '45 100% 55%',
+    sky: '195 100% 50%',
   },
   rose: {
-    primary: '350 89% 60%',
-    cyan: '191 93% 45%',
-    emerald: '158 78% 37%',
-    rose: '344 90% 60%',
-    amber: '38 93% 52%',
-    sky: '204 90% 50%',
+    primary: '340 100% 60%',
+    cyan: '195 100% 50%',
+    emerald: '160 100% 45%',
+    rose: '335 100% 65%',
+    amber: '35 100% 55%',
+    sky: '210 100% 55%',
   },
   amber: {
-    primary: '38 92% 50%',
-    cyan: '193 91% 44%',
-    emerald: '155 76% 38%',
-    rose: '350 82% 59%',
-    amber: '36 92% 52%',
-    sky: '203 92% 51%',
+    primary: '40 100% 55%',
+    cyan: '190 100% 50%',
+    emerald: '155 100% 45%',
+    rose: '345 100% 60%',
+    amber: '35 100% 50%',
+    sky: '200 100% 55%',
   },
   sky: {
-    primary: '202 94% 53%',
-    cyan: '193 92% 48%',
-    emerald: '160 76% 37%',
-    rose: '343 86% 58%',
-    amber: '39 90% 52%',
-    sky: '202 94% 53%',
+    primary: '200 100% 55%',
+    cyan: '190 100% 50%',
+    emerald: '160 100% 45%',
+    rose: '340 100% 60%',
+    amber: '40 100% 55%',
+    sky: '205 100% 60%',
   },
 }
 
+// Cenários Holográficos / Cockpit
 const backgroundPresets: Record<string, string> = {
   aurora:
-    'radial-gradient(circle at 10% 0%, hsl(var(--brand-primary-hsl) / 0.15), transparent 35%), radial-gradient(circle at 80% 10%, hsl(var(--brand-cyan-hsl) / 0.12), transparent 42%), linear-gradient(180deg, hsl(224 43% 7%), hsl(225 35% 9%))',
+    'radial-gradient(circle at 10% 0%, hsl(var(--brand-primary-hsl) / 0.15), transparent 40%), radial-gradient(circle at 80% 10%, hsl(var(--brand-cyan-hsl) / 0.15), transparent 45%), linear-gradient(180deg, hsl(240 10% 4%), hsl(240 10% 6%))',
+  neural: // Foco em Grid/Matriz Escura com glow central
+    'radial-gradient(ellipse at 50% 0%, hsl(var(--brand-primary-hsl) / 0.15), transparent 60%), linear-gradient(180deg, hsl(240 5% 3%), hsl(240 5% 5%))',
+  void: // Oled Black com brilho de base
+    'radial-gradient(circle at 50% 100%, hsl(var(--brand-primary-hsl) / 0.08), transparent 50%), linear-gradient(180deg, #000000, #050505)',
   ocean:
-    'radial-gradient(circle at 20% -5%, hsl(var(--brand-cyan-hsl) / 0.18), transparent 45%), radial-gradient(circle at 90% 0%, hsl(var(--brand-sky-hsl) / 0.14), transparent 40%), linear-gradient(180deg, hsl(210 45% 9%), hsl(214 46% 11%))',
-  graphite:
-    'radial-gradient(circle at 15% 0%, hsl(var(--brand-primary-hsl) / 0.1), transparent 35%), radial-gradient(circle at 80% 5%, hsl(var(--brand-emerald-hsl) / 0.08), transparent 35%), linear-gradient(180deg, hsl(223 28% 8%), hsl(224 28% 10%))',
+    'radial-gradient(circle at 20% -5%, hsl(var(--brand-cyan-hsl) / 0.20), transparent 50%), radial-gradient(circle at 90% 0%, hsl(var(--brand-sky-hsl) / 0.15), transparent 45%), linear-gradient(180deg, hsl(210 40% 5%), hsl(210 40% 8%))',
 }
 
 function applyPalette(colorVariable: string) {
   const palette = accentPalettes[colorVariable] || accentPalettes.violet
   const root = document.documentElement
+  
   root.style.setProperty('--brand-primary-hsl', palette.primary)
   root.style.setProperty('--brand-cyan-hsl', palette.cyan)
   root.style.setProperty('--brand-emerald-hsl', palette.emerald)
   root.style.setProperty('--brand-rose-hsl', palette.rose)
   root.style.setProperty('--brand-amber-hsl', palette.amber)
   root.style.setProperty('--brand-sky-hsl', palette.sky)
+
+  // Injeta variável extra para glows de sombras e neons
+  root.style.setProperty('--brand-glow', `hsl(${palette.primary} / 0.3)`)
 }
 
 function applyBackground(backgroundPreset: string) {
@@ -89,24 +97,25 @@ function applyBackground(backgroundPreset: string) {
 
 export function DynamicStyleProvider({ colorVariable }: { colorVariable: string }) {
   useEffect(() => {
-    const storedColor = localStorage.getItem('taskflow-accent-color')
-    const selectedColor =
-      storedColor && accentPalettes[storedColor] ? storedColor : colorVariable
+    // 🚀 BRANDING UPDATE: De taskflow para focusos
+    const storedColor = localStorage.getItem('focusos-accent-color')
+    const selectedColor = storedColor && accentPalettes[storedColor] ? storedColor : colorVariable
 
-    const storedPreset = localStorage.getItem('taskflow-background-preset') || 'aurora'
+    const storedPreset = localStorage.getItem('focusos-theme-preset') || 'aurora'
 
     applyPalette(selectedColor)
     applyBackground(storedPreset)
 
     const onAppearanceChange = () => {
-      const nextColor = localStorage.getItem('taskflow-accent-color') || colorVariable
-      const nextPreset = localStorage.getItem('taskflow-background-preset') || 'aurora'
+      const nextColor = localStorage.getItem('focusos-accent-color') || colorVariable
+      const nextPreset = localStorage.getItem('focusos-theme-preset') || 'aurora'
+      
       applyPalette(nextColor)
       applyBackground(nextPreset)
     }
 
-    window.addEventListener('taskflow-appearance-changed', onAppearanceChange)
-    return () => window.removeEventListener('taskflow-appearance-changed', onAppearanceChange)
+    window.addEventListener('focusos-appearance-changed', onAppearanceChange)
+    return () => window.removeEventListener('focusos-appearance-changed', onAppearanceChange)
   }, [colorVariable])
 
   return null

@@ -6,8 +6,8 @@ import type {
   Categoria,
   PrioridadeTarefa,
   StatusTarefa,
-  MembroTime,
-  CognitiveLoad,
+  MembroEquipe,
+  CargaMental,
 } from '@/lib/types'
 import { updateTask, createTask } from '@/lib/actions/tasks'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -27,7 +27,7 @@ import { cn } from '@/lib/utils'
 interface TaskEditDialogProps {
   task?: Tarefa | null
   categories?: Categoria[]
-  teamMembers?: MembroTime[]
+  teamMembers?: MembroEquipe[]
   open: boolean
   onOpenChange: (open: boolean) => void
   defaultParentId?: string | null
@@ -42,44 +42,43 @@ export function TaskEditDialog({
   defaultParentId = null
 }: TaskEditDialogProps) {
   
-  // Estados usando os valores do banco (Inglês)
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [status, setStatus] = useState<StatusTarefa>('todo')
-  const [priority, setPriority] = useState<PrioridadeTarefa>('medium')
-  const [categoryId, setCategoryId] = useState<string>('none')
-  const [assigneeId, setAssigneeId] = useState<string>('none')
-  const [dueDate, setDueDate] = useState<Date | undefined>()
-  const [estimatedMinutes, setEstimatedMinutes] = useState<string>('')
-  const [cognitiveLoad, setCognitiveLoad] = useState<CognitiveLoad>(3)
-  const [parentId, setParentId] = useState<string | null>(defaultParentId)
+  const [titulo, setTitulo] = useState('')
+  const [descricao, setDescricao] = useState('')
+  const [status, setStatus] = useState<StatusTarefa>('pendente')
+  const [prioridade, setPrioridade] = useState<PrioridadeTarefa>('media')
+  const [categoriaId, setCategoriaId] = useState<string>('none')
+  const [atribuidoA, setAtribuidoA] = useState<string>('none')
+  const [dataVencimento, setDataVencimento] = useState<Date | undefined>()
+  const [minutosEstimados, setMinutosEstimados] = useState<string>('')
+  const [cargaMental, setCargaMental] = useState<CargaMental>(3)
+  const [tarefaPaiId, setTarefaPaiId] = useState<string | null>(defaultParentId)
 
   const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
     if (open) {
       if (task) {
-        setTitle(task.title || '')
-        setDescription(task.description || '')
-        setStatus(task.status || 'todo')
-        setPriority(task.priority || 'medium')
-        setCategoryId(task.category_id || 'none')
-        setAssigneeId(task.assignee_id || 'none')
-        setDueDate(task.due_date ? new Date(task.due_date) : undefined)
-        setEstimatedMinutes(task.estimated_minutes?.toString() || '')
-        setCognitiveLoad((task.cognitive_load || 3) as CognitiveLoad)
-        setParentId(task.parent_id || null)
+        setTitulo(task.titulo || '')
+        setDescricao(task.descricao || '')
+        setStatus(task.status || 'pendente')
+        setPrioridade(task.prioridade || 'media')
+        setCategoriaId(task.categoria_id || 'none')
+        setAtribuidoA(task.atribuido_a || 'none')
+        setDataVencimento(task.data_vencimento ? new Date(task.data_vencimento) : undefined)
+        setMinutosEstimados(task.minutos_estimados?.toString() || '')
+        setCargaMental((task.carga_mental || 3) as CargaMental)
+        setTarefaPaiId(task.tarefa_pai_id || null)
       } else {
-        setTitle('')
-        setDescription('')
-        setStatus('todo')
-        setPriority('medium')
-        setCategoryId('none')
-        setAssigneeId('none')
-        setDueDate(undefined)
-        setEstimatedMinutes('')
-        setCognitiveLoad(3)
-        setParentId(defaultParentId)
+        setTitulo('')
+        setDescricao('')
+        setStatus('pendente')
+        setPrioridade('media')
+        setCategoriaId('none')
+        setAtribuidoA('none')
+        setDataVencimento(undefined)
+        setMinutosEstimados('')
+        setCargaMental(3)
+        setTarefaPaiId(defaultParentId)
       }
     }
   }, [task, open, defaultParentId])
@@ -87,24 +86,24 @@ export function TaskEditDialog({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
-    if (!title.trim()) {
+    if (!titulo.trim()) {
       toast.error('O título da tarefa é obrigatório.')
       return
     }
 
     startTransition(async () => {
-      // Payload com chaves em INGLÊS (Exatamente como as colunas do seu DB)
-      const payload = {
-        title: title.trim(),
-        description: description.trim() || null,
+      // O Payload de segurança para a Base de Dados em PT
+      const payload: Partial<Tarefa> = {
+        titulo: titulo.trim(),
+        descricao: descricao.trim() || null,
         status: status,
-        priority: priority,
-        parent_id: parentId,
-        category_id: categoryId === 'none' ? null : categoryId,
-        assignee_id: assigneeId === 'none' ? null : assigneeId,
-        due_date: dueDate?.toISOString() || null,
-        estimated_minutes: estimatedMinutes ? parseInt(estimatedMinutes) : null,
-        cognitive_load: cognitiveLoad,
+        prioridade: prioridade,
+        tarefa_pai_id: tarefaPaiId,
+        categoria_id: categoriaId === 'none' ? null : categoriaId,
+        atribuido_a: atribuidoA === 'none' ? null : atribuidoA,
+        data_vencimento: dataVencimento?.toISOString() || null,
+        minutos_estimados: minutosEstimados ? parseInt(minutosEstimados) : null,
+        carga_mental: cargaMental,
       }
 
       try {
@@ -141,9 +140,9 @@ export function TaskEditDialog({
           <div className="space-y-4">
             <div className="space-y-2">
               <Input 
-                id="title" 
-                value={title} 
-                onChange={(e) => setTitle(e.target.value)} 
+                id="titulo" 
+                value={titulo} 
+                onChange={(e) => setTitulo(e.target.value)} 
                 placeholder="O que precisa ser feito?" 
                 className="bg-transparent border-none text-lg md:text-xl font-semibold px-0 focus-visible:ring-0 placeholder:text-muted-foreground/50 h-auto"
                 required 
@@ -152,9 +151,9 @@ export function TaskEditDialog({
             </div>
             <div className="space-y-2">
               <Textarea 
-                id="description" 
-                value={description} 
-                onChange={(e) => setDescription(e.target.value)} 
+                id="descricao" 
+                value={descricao} 
+                onChange={(e) => setDescricao(e.target.value)} 
                 placeholder="Adicione detalhes, links ou notas importantes..." 
                 className="bg-white/5 border-white/5 focus-visible:ring-brand-violet/50 resize-none"
                 rows={3} 
@@ -170,24 +169,24 @@ export function TaskEditDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-[#18181b] border-white/10 text-white">
-                  <SelectItem value="todo"><div className="flex items-center"><Circle className="w-3 h-3 mr-2 text-slate-400" /> A Fazer</div></SelectItem>
-                  <SelectItem value="in_progress"><div className="flex items-center"><Circle className="w-3 h-3 mr-2 text-brand-violet fill-brand-violet/20" /> Em Foco</div></SelectItem>
-                  <SelectItem value="done"><div className="flex items-center"><Circle className="w-3 h-3 mr-2 text-brand-emerald fill-brand-emerald" /> Concluída</div></SelectItem>
+                  <SelectItem value="pendente"><div className="flex items-center"><Circle className="w-3 h-3 mr-2 text-slate-400" /> A Fazer</div></SelectItem>
+                  <SelectItem value="em_progresso"><div className="flex items-center"><Circle className="w-3 h-3 mr-2 text-brand-violet fill-brand-violet/20" /> Em Foco</div></SelectItem>
+                  <SelectItem value="concluida"><div className="flex items-center"><Circle className="w-3 h-3 mr-2 text-brand-emerald fill-brand-emerald" /> Concluída</div></SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
               <Label className="text-xs uppercase tracking-wider text-muted-foreground">Prioridade</Label>
-              <Select value={priority} onValueChange={(v) => setPriority(v as PrioridadeTarefa)}>
+              <Select value={prioridade} onValueChange={(v) => setPrioridade(v as PrioridadeTarefa)}>
                 <SelectTrigger className="bg-black/40 border-white/10">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-[#18181b] border-white/10 text-white">
-                  <SelectItem value="low"><div className="flex items-center"><Flag className="w-3 h-3 mr-2 text-blue-400" /> Baixa</div></SelectItem>
-                  <SelectItem value="medium"><div className="flex items-center"><Flag className="w-3 h-3 mr-2 text-brand-cyan" /> Média</div></SelectItem>
-                  <SelectItem value="high"><div className="flex items-center"><Flag className="w-3 h-3 mr-2 text-orange-400" /> Alta</div></SelectItem>
-                  <SelectItem value="urgent"><div className="flex items-center"><Flag className="w-3 h-3 mr-2 text-red-500" /> Urgente</div></SelectItem>
+                  <SelectItem value="baixa"><div className="flex items-center"><Flag className="w-3 h-3 mr-2 text-blue-400" /> Baixa</div></SelectItem>
+                  <SelectItem value="media"><div className="flex items-center"><Flag className="w-3 h-3 mr-2 text-brand-cyan" /> Média</div></SelectItem>
+                  <SelectItem value="alta"><div className="flex items-center"><Flag className="w-3 h-3 mr-2 text-orange-400" /> Alta</div></SelectItem>
+                  <SelectItem value="urgente"><div className="flex items-center"><Flag className="w-3 h-3 mr-2 text-red-500" /> Urgente</div></SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -196,7 +195,7 @@ export function TaskEditDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-xs uppercase tracking-wider text-muted-foreground">Categoria</Label>
-              <Select value={categoryId} onValueChange={setCategoryId}>
+              <Select value={categoriaId} onValueChange={setCategoriaId}>
                 <SelectTrigger className="bg-black/40 border-white/10">
                   <SelectValue placeholder="Sem categoria" />
                 </SelectTrigger>
@@ -205,8 +204,8 @@ export function TaskEditDialog({
                   {categories.map((cat) => (
                     <SelectItem key={cat.id} value={cat.id}>
                       <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color, boxShadow: `0 0 8px ${cat.color}80` }} />
-                        {cat.name}
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.cor, boxShadow: `0 0 8px ${cat.cor}80` }} />
+                        {cat.nome}
                       </div>
                     </SelectItem>
                   ))}
@@ -216,15 +215,15 @@ export function TaskEditDialog({
 
             <div className="space-y-2">
               <Label className="text-xs uppercase tracking-wider text-muted-foreground">Responsável</Label>
-              <Select value={assigneeId} onValueChange={setAssigneeId}>
+              <Select value={atribuidoA} onValueChange={setAtribuidoA}>
                 <SelectTrigger className="bg-black/40 border-white/10">
                   <SelectValue placeholder="Atribuir a..." />
                 </SelectTrigger>
                 <SelectContent className="bg-[#18181b] border-white/10 text-white">
                   <SelectItem value="none" className="text-muted-foreground">Sem responsável</SelectItem>
                   {teamMembers.map((member) => (
-                    <SelectItem key={member.user_id} value={member.user_id}>
-                      {member.profile?.full_name || 'Membro da equipe'}
+                    <SelectItem key={member.usuario_id} value={member.usuario_id}>
+                      {member.perfil?.nome_completo || 'Membro da equipe'}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -239,17 +238,17 @@ export function TaskEditDialog({
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
-                    className={cn('w-full justify-start text-left font-normal bg-black/40 border-white/10 hover:bg-white/10', !dueDate && 'text-muted-foreground')}
+                    className={cn('w-full justify-start text-left font-normal bg-black/40 border-white/10 hover:bg-white/10', !dataVencimento && 'text-muted-foreground')}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dueDate ? format(dueDate, 'dd MMM yyyy', { locale: ptBR }) : 'Definir prazo'}
+                    {dataVencimento ? format(dataVencimento, 'dd MMM yyyy', { locale: ptBR }) : 'Definir prazo'}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 border-white/10 bg-[#18181b]" align="start">
                   <Calendar 
                     mode="single" 
-                    selected={dueDate} 
-                    onSelect={setDueDate} 
+                    selected={dataVencimento} 
+                    onSelect={setDataVencimento} 
                     initialFocus 
                     locale={ptBR}
                     className="bg-[#18181b] text-white" 
@@ -264,8 +263,8 @@ export function TaskEditDialog({
                 <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   type="number"
-                  value={estimatedMinutes}
-                  onChange={(e) => setEstimatedMinutes(e.target.value)}
+                  value={minutosEstimados}
+                  onChange={(e) => setMinutosEstimados(e.target.value)}
                   placeholder="Ex: 30"
                   min="1"
                   className="bg-black/40 border-white/10 pl-9 text-white"
@@ -276,8 +275,8 @@ export function TaskEditDialog({
             <div className="space-y-2">
               <Label className="text-xs uppercase tracking-wider text-muted-foreground">Carga Cognitiva</Label>
               <Select
-                value={String(cognitiveLoad)}
-                onValueChange={(value) => setCognitiveLoad(Number(value) as CognitiveLoad)}
+                value={String(cargaMental)}
+                onValueChange={(value) => setCargaMental(Number(value) as CargaMental)}
               >
                 <SelectTrigger className="bg-black/40 border-white/10">
                   <SelectValue />
