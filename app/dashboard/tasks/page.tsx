@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { AllTasksView } from '@/components/dashboard/all-tasks-view'
+import { normalizeCategory, normalizeTask } from '@/lib/normalizers'
 
 export default async function TasksPage() {
   const supabase = await createClient()
@@ -8,27 +9,30 @@ export default async function TasksPage() {
   if (!user) return null
 
   const { data: tasks } = await supabase
-    .from('tasks')
+    .from('tarefas')
     .select(`
       *,
-      category:categories(*)
+      categoria:categorias(*)
     `)
-    .eq('user_id', user.id)
-    .is('parent_id', null)
+    .eq('usuario_id', user.id)
+    .is('tarefa_pai_id', null)
     .order('status', { ascending: true })
-    .order('priority', { ascending: false })
-    .order('created_at', { ascending: false })
+    .order('prioridade', { ascending: false })
+    .order('criado_em', { ascending: false })
 
   const { data: categories } = await supabase
-    .from('categories')
+    .from('categorias')
     .select('*')
-    .eq('user_id', user.id)
-    .order('name')
+    .eq('usuario_id', user.id)
+    .order('nome')
+
+  const normalizedTasks = (tasks || []).map(normalizeTask)
+  const normalizedCategories = (categories || []).map(normalizeCategory)
 
   return (
     <AllTasksView 
-      tasks={tasks || []} 
-      categories={categories || []}
+      tasks={normalizedTasks} 
+      categories={normalizedCategories}
     />
   )
 }

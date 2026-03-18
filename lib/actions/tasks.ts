@@ -25,6 +25,14 @@ const PRIORITY_MULTIPLIER: Record<PrioridadeTarefa, number> = {
   urgente: 2.0,
 }
 
+function revalidateTaskSurfaces() {
+  revalidatePath('/dashboard', 'layout')
+  revalidatePath('/dashboard/tasks')
+  revalidatePath('/dashboard/kanban')
+  revalidatePath('/dashboard/calendar')
+  revalidatePath('/dashboard/projects')
+}
+
 // ----------------------------------------------------------------------
 // FUNÇÕES AUXILIARES (HELPERS)
 // ----------------------------------------------------------------------
@@ -206,6 +214,8 @@ export async function createTask(data: Partial<Tarefa>) {
   const payload = {
     ...data,
     usuario_id: user.id,
+    status: data.status || 'pendente',
+    prioridade: data.prioridade || 'media',
     carga_mental: data.carga_mental || 3, // Padrão seguro
   }
 
@@ -213,8 +223,66 @@ export async function createTask(data: Partial<Tarefa>) {
 
   if (error) return { error: error.message }
 
-  revalidatePath('/dashboard', 'layout')
+  revalidateTaskSurfaces()
   return { data: task as Tarefa }
+}
+
+export async function createTasksBatch(
+  tasks: Array<
+    Pick<Tarefa, 'titulo'> &
+      Partial<
+        Pick<
+          Tarefa,
+          | 'descricao'
+          | 'status'
+          | 'prioridade'
+          | 'categoria_id'
+          | 'data_vencimento'
+          | 'equipe_id'
+          | 'atribuido_a'
+          | 'carga_mental'
+          | 'tarefa_pai_id'
+          | 'minutos_estimados'
+        >
+      >
+  >,
+) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { error: 'Link Neural perdido. FaÃ§a login novamente.' }
+  if (!tasks.length) return { data: [] as Tarefa[], inserted: 0 }
+
+  const payload = tasks
+    .map((task) => ({
+      usuario_id: user.id,
+      titulo: task.titulo?.trim(),
+      descricao: task.descricao || null,
+      status: task.status || 'pendente',
+      prioridade: task.prioridade || 'media',
+      categoria_id: task.categoria_id ?? null,
+      data_vencimento: task.data_vencimento ?? null,
+      equipe_id: task.equipe_id ?? null,
+      atribuido_a: task.atribuido_a ?? null,
+      carga_mental: task.carga_mental || 3,
+      tarefa_pai_id: task.tarefa_pai_id ?? null,
+      minutos_estimados: task.minutos_estimados ?? null,
+    }))
+    .filter((task) => Boolean(task.titulo))
+
+  if (!payload.length) {
+    return { error: 'Nenhuma tarefa vÃ¡lida para importar.' }
+  }
+
+  const { data, error } = await supabase
+    .from('tarefas')
+    .insert(payload)
+    .select(TASK_SELECT)
+
+  if (error) return { error: error.message }
+
+  revalidateTaskSurfaces()
+  return { data: (data || []) as Tarefa[], inserted: data?.length || 0 }
 }
 
 export async function updateTask(id: string, data: Partial<Tarefa>) {
@@ -273,7 +341,7 @@ export async function updateTask(id: string, data: Partial<Tarefa>) {
     )
   }
 
-  revalidatePath('/dashboard', 'layout')
+  revalidateTaskSurfaces()
   return { data: updatedTask as Tarefa }
 }
 
@@ -287,6 +355,6 @@ export async function deleteTask(id: string) {
 
   if (error) return { error: error.message }
 
-  revalidatePath('/dashboard', 'layout')
+  revalidateTaskSurfaces()
   return { success: true }
 }

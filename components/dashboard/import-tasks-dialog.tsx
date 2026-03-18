@@ -12,6 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { ArrowRight, Check, Trash2, Loader2, Sparkles, UploadCloud, BrainCircuit } from 'lucide-react'
 import { toast } from 'sonner'
 import { Categoria } from '@/lib/types'
+import { createTasksBatch } from '@/lib/actions/tasks'
 
 interface ImportTasksDialogProps {
   categories: Categoria[]
@@ -50,22 +51,40 @@ export function ImportTasksDialog({ categories, trigger }: ImportTasksDialogProp
     setStep('review')
   }
 
-  // 2. O envio (Simulado no front-end por enquanto, mas preparado para o Server Action)
+  // 2. O envio para o backend em lote
   const handleConfirmImport = () => {
     startTransition(async () => {
-      // TODO: Conectar com o createTask em massa no lib/actions/tasks.ts
-      await new Promise(resolve => setTimeout(resolve, 1500))
-      
-      toast.success(`${draftTasks.length} Missões Injetadas! 🚀`, {
-          description: 'A rede neural processou as informações com sucesso.'
+      const payload = draftTasks
+        .map((task) => ({
+          titulo: task.titulo.trim(),
+          categoria_id: task.categoria_id === 'none' ? null : task.categoria_id,
+          data_vencimento: task.data_vencimento
+            ? new Date(`${task.data_vencimento}T12:00:00`).toISOString()
+            : null,
+        }))
+        .filter((task) => task.titulo.length > 0)
+
+      if (!payload.length) {
+        toast.error('Nenhuma tarefa valida para importar.')
+        return
+      }
+
+      const result = await createTasksBatch(payload)
+      if (result.error) {
+        toast.error('Falha ao importar tarefas', { description: result.error })
+        return
+      }
+
+      toast.success(`${result.inserted || payload.length} Missoes injetadas!`, {
+        description: 'As tarefas foram gravadas no sistema com sucesso.',
       })
       setOpen(false)
-      
-      // Reset do estado após fechar
+
+      // Reset do estado apos fechar
       setTimeout(() => {
-          setStep('input')
-          setRawText('')
-          setDraftTasks([])
+        setStep('input')
+        setRawText('')
+        setDraftTasks([])
       }, 300)
     })
   }
@@ -234,3 +253,4 @@ export function ImportTasksDialog({ categories, trigger }: ImportTasksDialogProp
     </Dialog>
   )
 }
+

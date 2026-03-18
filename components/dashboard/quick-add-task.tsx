@@ -1,11 +1,13 @@
 'use client'
 
-import React, { useState, useTransition } from 'react'
-import type { Categoria, CargaMental, PrioridadeTarefa, MembroEquipe } from '@/lib/types'
+import React, { useEffect, useState, useTransition } from 'react'
+import type { Categoria, CargaMental, PrioridadeTarefa, MembroEquipe, StatusTarefa } from '@/lib/types'
 import { createTask } from '@/lib/actions/tasks'
+import { createCategory } from '@/lib/actions/categories'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -18,29 +20,58 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import { Calendar } from '@/components/ui/calendar'
-import { Plus, CalendarIcon, Flag, Loader2, UserRound, Brain } from 'lucide-react'
+import { Plus, CalendarIcon, Flag, Loader2, UserRound, Brain, Circle, RefreshCw, FolderPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
+import { normalizeCategory } from '@/lib/normalizers'
 
 interface QuickAddTaskProps {
   categories: Categoria[]
   parentId?: string
   selectedTeamId?: string | null
   teamMembers?: MembroEquipe[]
+  defaultStatus?: StatusTarefa
 }
 
-export function QuickAddTask({ categories, parentId, selectedTeamId, teamMembers = [] }: QuickAddTaskProps) {
+export function QuickAddTask({
+  categories,
+  parentId,
+  selectedTeamId,
+  teamMembers = [],
+  defaultStatus = 'pendente',
+}: QuickAddTaskProps) {
   const [titulo, setTitulo] = useState('')
+  const [status, setStatus] = useState<StatusTarefa>(defaultStatus)
   const [prioridade, setPrioridade] = useState<PrioridadeTarefa>('media')
+  const [localCategories, setLocalCategories] = useState<Categoria[]>(categories)
   const [categoriaId, setCategoriaId] = useState<string>('none')
   const [atribuidoA, setAtribuidoA] = useState<string>('none')
   const [cargaMental, setCargaMental] = useState<CargaMental>(3)
   const [dataVencimento, setDataVencimento] = useState<Date | undefined>()
   const [showOptions, setShowOptions] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const [isSavingCategory, setIsSavingCategory] = useState(false)
+  const [newCategoryOpen, setNewCategoryOpen] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [newCategoryColor, setNewCategoryColor] = useState('#8b5cf6')
+
+  useEffect(() => {
+    setStatus(defaultStatus)
+  }, [defaultStatus])
+
+  useEffect(() => {
+    setLocalCategories(categories)
+  }, [categories])
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -50,6 +81,7 @@ export function QuickAddTask({ categories, parentId, selectedTeamId, teamMembers
     startTransition(async () => {
       const result = await createTask({
         titulo: titulo.trim(),
+        status,
         prioridade,
         categoria_id: categoriaId === 'none' ? undefined : categoriaId,
         data_vencimento: dataVencimento?.toISOString(),
@@ -68,6 +100,7 @@ export function QuickAddTask({ categories, parentId, selectedTeamId, teamMembers
 
       toast.success('Missão injetada no radar!')
       setTitulo('')
+      setStatus(defaultStatus)
       setPrioridade('media')
       setCategoriaId('none')
       setAtribuidoA('none')
@@ -75,6 +108,35 @@ export function QuickAddTask({ categories, parentId, selectedTeamId, teamMembers
       setDataVencimento(undefined)
       setShowOptions(false)
     })
+  }
+
+  async function handleCreateCategory() {
+    const nome = newCategoryName.trim()
+    if (!nome) {
+      toast.error('Informe um nome para a categoria.')
+      return
+    }
+
+    setIsSavingCategory(true)
+    try {
+      const result = await createCategory({ nome, cor: newCategoryColor })
+      if (result.error) {
+        toast.error('Erro ao criar categoria', { description: result.error })
+        return
+      }
+
+      const categoriaCriada = normalizeCategory(result.data)
+      setLocalCategories((prev) =>
+        [...prev, categoriaCriada].sort((a, b) => a.nome.localeCompare(b.nome)),
+      )
+      setCategoriaId(categoriaCriada.id)
+      setNewCategoryName('')
+      setNewCategoryColor('#8b5cf6')
+      setNewCategoryOpen(false)
+      toast.success('Categoria criada e selecionada.')
+    } finally {
+      setIsSavingCategory(false)
+    }
   }
 
   return (
@@ -105,6 +167,18 @@ export function QuickAddTask({ categories, parentId, selectedTeamId, teamMembers
 
           {showOptions && (
             <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-white/5 animate-in fade-in slide-in-from-top-2 duration-300">
+              <Select value={status} onValueChange={(v) => setStatus(v as StatusTarefa)}>
+                <SelectTrigger className="w-[132px] h-8 bg-white/5 border-white/10 text-[10px] uppercase font-bold tracking-wider">
+                  <SelectValue placeholder="Coluna" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#18181b] border-white/10 text-white">
+                  <SelectItem value="pendente"><div className="flex items-center"><Circle className="w-3 h-3 mr-2 text-slate-400" /> A FAZER</div></SelectItem>
+                  <SelectItem value="em_progresso"><div className="flex items-center"><Circle className="w-3 h-3 mr-2 text-brand-violet fill-brand-violet/20" /> EM FOCO</div></SelectItem>
+                  <SelectItem value="revisao"><div className="flex items-center"><RefreshCw className="w-3 h-3 mr-2 text-emerald-400" /> REVISAO</div></SelectItem>
+                  <SelectItem value="concluida"><div className="flex items-center"><Circle className="w-3 h-3 mr-2 text-brand-emerald fill-brand-emerald" /> CONCLUIDA</div></SelectItem>
+                </SelectContent>
+              </Select>
+
               <Select value={prioridade} onValueChange={(v) => setPrioridade(v as PrioridadeTarefa)}>
                 <SelectTrigger className="w-[120px] h-8 bg-white/5 border-white/10 text-[10px] uppercase font-bold tracking-wider">
                   <SelectValue />
@@ -117,14 +191,14 @@ export function QuickAddTask({ categories, parentId, selectedTeamId, teamMembers
                 </SelectContent>
               </Select>
 
-              {categories.length > 0 && (
+              {localCategories.length > 0 && (
                 <Select value={categoriaId} onValueChange={setCategoriaId}>
                   <SelectTrigger className="w-[140px] h-8 bg-white/5 border-white/10 text-[10px] uppercase font-bold tracking-wider">
                     <SelectValue placeholder="Categoria" />
                   </SelectTrigger>
                   <SelectContent className="bg-[#18181b] border-white/10 text-white">
                     <SelectItem value="none">SEM CATEGORIA</SelectItem>
-                    {categories.map((cat) => (
+                    {localCategories.map((cat) => (
                       <SelectItem key={cat.id} value={cat.id}>
                         <div className="flex items-center gap-2">
                           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.cor, boxShadow: `0 0 5px ${cat.cor}80` }} />
@@ -135,6 +209,59 @@ export function QuickAddTask({ categories, parentId, selectedTeamId, teamMembers
                   </SelectContent>
                 </Select>
               )}
+
+              <Dialog open={newCategoryOpen} onOpenChange={setNewCategoryOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 bg-white/5 border-white/10 text-[10px] uppercase font-bold tracking-wider"
+                  >
+                    <FolderPlus className="w-3 h-3 mr-1.5" />
+                    Categoria
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[420px] bg-[#09090b]/95 border-white/10">
+                  <DialogHeader>
+                    <DialogTitle className="text-white text-sm uppercase tracking-widest">Nova categoria</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-xs uppercase tracking-wider text-muted-foreground">Nome</Label>
+                      <Input
+                        value={newCategoryName}
+                        onChange={(e) => setNewCategoryName(e.target.value)}
+                        placeholder="Ex: Estudos"
+                        className="bg-black/40 border-white/10"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs uppercase tracking-wider text-muted-foreground">Cor</Label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="color"
+                          value={newCategoryColor}
+                          onChange={(e) => setNewCategoryColor(e.target.value)}
+                          className="h-10 w-10 rounded-md border border-white/10 bg-transparent"
+                        />
+                        <code className="text-xs text-muted-foreground">{newCategoryColor}</code>
+                      </div>
+                    </div>
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        onClick={handleCreateCategory}
+                        disabled={isSavingCategory}
+                        className="bg-brand-cyan hover:bg-brand-cyan/90 text-black"
+                      >
+                        {isSavingCategory ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FolderPlus className="w-4 h-4 mr-2" />}
+                        Criar categoria
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
 
               {!!selectedTeamId && (
                 <Select value={atribuidoA} onValueChange={setAtribuidoA}>

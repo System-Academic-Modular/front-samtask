@@ -8,37 +8,42 @@ export default async function TeamsPage() {
 
   if (!user) redirect('/auth/login')
 
-  // Ajustado para as tabelas reais: team_members e teams
   const { data: members, error: membersError } = await supabase
-    .from('team_members')
+    .from('membros_equipe')
     .select(`
-      role,
-      team:teams (
+      papel,
+      equipe:equipes (
         id,
-        name,
-        description,
-        owner_id,
-        invite_code
+        nome,
+        descricao,
+        dono_id,
+        codigo_convite
       )
     `)
-    .eq('user_id', user.id)
+    .eq('usuario_id', user.id)
 
   const minhasEquipes = (members ?? [])
     .map((member: any) => {
-      const equipaData = member.team
+      const equipaData = member.equipe
       if (!equipaData) return null
+
+      const role =
+        member.papel === 'owner' || member.papel === 'dono'
+          ? 'owner'
+          : member.papel === 'admin'
+            ? 'admin'
+            : 'member'
       
       return {
         ...equipaData,
-        role: member.role, // 'owner', 'admin' ou 'member'
+        role,
       } as EquipaComPermissao
     })
     .filter((equipa): equipa is EquipaComPermissao => equipa !== null)
 
-  // Ordenação: Líderes (owner) primeiro, depois Admins, depois Membros
   const roleOrder = { owner: 0, admin: 1, member: 2 }
   minhasEquipes.sort((a, b) => {
-    return roleOrder[a.role] - roleOrder[b.role] || a.name.localeCompare(b.name)
+    return roleOrder[a.role] - roleOrder[b.role] || a.nome.localeCompare(b.nome)
   })
 
   const total = minhasEquipes.length

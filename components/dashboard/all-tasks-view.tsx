@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import type { Tarefa, Categoria, StatusTarefa, PrioridadeTarefa } from '@/lib/types'
 import { TaskList } from './task-list'
 import { QuickAddTask } from './quick-add-task'
+import { updateTask } from '@/lib/actions/tasks'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,6 +16,7 @@ import {
 } from '@/components/ui/select'
 import { Card, CardContent } from '@/components/ui/card'
 import { Search, ListTodo, X, Circle, RefreshCw, Flag } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface AllTasksViewProps {
   tasks: Tarefa[]
@@ -26,6 +28,9 @@ export function AllTasksView({ tasks, categories }: AllTasksViewProps) {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [priorityFilter, setPriorityFilter] = useState<string>('all')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
+  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([])
+  const [bulkCategoryId, setBulkCategoryId] = useState<string>('none')
+  const [isBulkPending, startBulkTransition] = useTransition()
 
   const filteredTasks = tasks.filter((task) => {
     if (search && !task.titulo.toLowerCase().includes(search.toLowerCase())) {
@@ -50,6 +55,35 @@ export function AllTasksView({ tasks, categories }: AllTasksViewProps) {
     setStatusFilter('all')
     setPriorityFilter('all')
     setCategoryFilter('all')
+  }
+
+  function toggleTaskSelection(taskId: string) {
+    setSelectedTaskIds((prev) =>
+      prev.includes(taskId) ? prev.filter((id) => id !== taskId) : [...prev, taskId],
+    )
+  }
+
+  function applyBulkCategory() {
+    if (!selectedTaskIds.length) {
+      toast.error('Selecione pelo menos uma tarefa.')
+      return
+    }
+
+    startBulkTransition(async () => {
+      const categoriaId = bulkCategoryId === 'none' ? null : bulkCategoryId
+      const updates = await Promise.all(
+        selectedTaskIds.map((taskId) => updateTask(taskId, { categoria_id: categoriaId })),
+      )
+
+      const firstError = updates.find((result) => result.error)
+      if (firstError?.error) {
+        toast.error('Falha na atualizacao em massa', { description: firstError.error })
+        return
+      }
+
+      toast.success('Categoria aplicada em lote.')
+      setSelectedTaskIds([])
+    })
   }
 
   return (
@@ -142,6 +176,81 @@ export function AllTasksView({ tasks, categories }: AllTasksViewProps) {
 
       {/* Quick Add (Precisaremos traduzir este componente também se ele passar nomes em inglês) */}
       <QuickAddTask categories={categories} />
+
+      <Card className="bg-black/30 border-white/10 backdrop-blur-md">
+        <CardContent className="p-4 space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+            <h3 className="text-[11px] font-black uppercase tracking-widest text-white/80">
+              Edicao rapida em massa
+            </h3>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-[10px] uppercase tracking-widest"
+                onClick={() => setSelectedTaskIds(filteredTasks.map((task) => task.id))}
+              >
+                Selecionar filtradas
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-[10px] uppercase tracking-widest"
+                onClick={() => setSelectedTaskIds([])}
+              >
+                Limpar
+              </Button>
+            </div>
+          </div>
+
+          <div className="max-h-32 overflow-y-auto border border-white/10 rounded-xl p-2 space-y-1">
+            {filteredTasks.length === 0 && (
+              <p className="text-xs text-muted-foreground px-2 py-1">Nenhuma tarefa no filtro atual.</p>
+            )}
+            {filteredTasks.map((task) => (
+              <label key={task.id} className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-white/5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedTaskIds.includes(task.id)}
+                  onChange={() => toggleTaskSelection(task.id)}
+                  className="accent-cyan-400"
+                />
+                <span className="text-xs text-white/90 truncate">{task.titulo}</span>
+              </label>
+            ))}
+          </div>
+
+          <div className="flex flex-col md:flex-row gap-2 md:items-center">
+            <Select value={bulkCategoryId} onValueChange={setBulkCategoryId}>
+              <SelectTrigger className="md:w-[220px] bg-black/40 border-white/10 h-10 text-[11px] uppercase tracking-wider font-bold">
+                <SelectValue placeholder="Categoria destino" />
+              </SelectTrigger>
+              <SelectContent className="bg-[#18181b] border-white/10 text-white">
+                <SelectItem value="none">SEM CATEGORIA</SelectItem>
+                {categories.map((cat) => (
+                  <SelectItem key={cat.id} value={cat.id}>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.cor }} />
+                      {cat.nome}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Button
+              type="button"
+              onClick={applyBulkCategory}
+              disabled={isBulkPending || selectedTaskIds.length === 0}
+              className="bg-brand-cyan hover:bg-brand-cyan/90 text-black text-[10px] uppercase tracking-widest font-black"
+            >
+              {isBulkPending ? 'Aplicando...' : `Aplicar em ${selectedTaskIds.length || 0}`}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Task List */}
       {filteredTasks.length > 0 ? (

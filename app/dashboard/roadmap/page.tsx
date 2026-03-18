@@ -3,6 +3,7 @@ import { RoadmapView } from '@/components/dashboard/roadmap-view'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Info, CalendarDays, Sparkles } from 'lucide-react'
 import type { Tarefa, Categoria } from '@/lib/types'
+import { normalizeCategory, normalizeTask } from '@/lib/normalizers'
 
 interface RoadmapPageProps {
   searchParams: Promise<{
@@ -17,28 +18,26 @@ export default async function RoadmapPage({ searchParams }: RoadmapPageProps) {
 
   if (!user) return null
 
-  // 1. Queries Paralelas para Performance
-  // Filtramos apenas tarefas com data_vencimento (essencial para o Roadmap)
   let tasksQuery = supabase
-    .from('tasks')
-    .select('*, category:categories(*)')
-    .not('data_vencimento', 'is', null) // Sincronizado: due_date -> data_vencimento
+    .from('tarefas')
+    .select('*, categoria:categorias(*)')
+    .not('data_vencimento', 'is', null)
     .neq('status', 'concluida')
     .order('data_vencimento', { ascending: true })
 
   if (teamId) {
-    tasksQuery = tasksQuery.eq('team_id', teamId)
+    tasksQuery = tasksQuery.eq('equipe_id', teamId)
   } else {
-    tasksQuery = tasksQuery.eq('user_id', user.id).is('team_id', null)
+    tasksQuery = tasksQuery.eq('usuario_id', user.id).is('equipe_id', null)
   }
 
   const [tasksResult, categoriesResult] = await Promise.all([
     tasksQuery,
-    supabase.from('categories').select('*').eq('user_id', user.id)
+    supabase.from('categorias').select('*').eq('usuario_id', user.id),
   ])
 
-  const tasks = (tasksResult.data || []) as Tarefa[]
-  const categories = (categoriesResult.data || []) as Categoria[]
+  const tasks = (tasksResult.data || []).map(normalizeTask) as Tarefa[]
+  const categories = (categoriesResult.data || []).map(normalizeCategory) as Categoria[]
 
   return (
     <div className="h-full flex flex-col space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Bell, Search, UploadCloud, Target, CheckCircle2, Flame, Users, Code2, Activity } from 'lucide-react'
+import { Bell, Search, UploadCloud, Target, CheckCircle2, Flame, Users, Code2, Activity, Plus } from 'lucide-react'
 import { TaskEditDialog } from '@/components/dashboard/task-edit-dialog'
 import { ImportTasksDialog } from '@/components/dashboard/import-tasks-dialog'
 import { ZenMode } from '@/components/dashboard/zen-mode'
@@ -76,7 +76,20 @@ export function HeaderActions({ categories }: { categories: Categoria[] }) {
 
   return (
     <div className="flex items-center gap-2 md:gap-4">
-      
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setOpen(true)}
+        className={cn(
+          "border-brand-cyan/40 bg-brand-cyan/10 text-brand-cyan gap-2 transition-all duration-300",
+          "hover:bg-brand-cyan hover:text-black hover:scale-105 active:scale-95",
+          "px-3 md:px-4 h-9 rounded-xl font-black uppercase tracking-widest text-[10px]"
+        )}
+      >
+        <Plus className="w-4 h-4" />
+        <span className="hidden sm:inline">NOVA TAREFA</span>
+      </Button>
+
       {/* Botão Modo Zen - Estética Tática */}
       <Button 
         variant="outline" 

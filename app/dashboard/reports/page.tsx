@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { ReportsView } from '@/components/dashboard/reports-view'
 import { BarChart3, TrendingUp } from 'lucide-react'
 import type { Tarefa, Categoria, PomodoroSession } from '@/lib/types'
+import { normalizeCategory, normalizePomodoroSession, normalizeTask } from '@/lib/normalizers'
 
 export default async function ReportsPage() {
   const supabase = await createClient()
@@ -10,35 +11,32 @@ export default async function ReportsPage() {
 
   if (!user) redirect('/auth/login')
 
-  // 1. Definição do intervalo temporal (Últimos 7 dias)
   const seteDiasAtras = new Date()
   seteDiasAtras.setDate(seteDiasAtras.getDate() - 7)
   seteDiasAtras.setHours(0, 0, 0, 0)
 
-  // 2. Busca Paralela de Dados (Performance de Elite)
   const [tasksRes, sessionsRes, categoriesRes] = await Promise.all([
     supabase
-      .from('tasks')
-      .select('*, category:categories(*)')
-      .eq('user_id', user.id),
+      .from('tarefas')
+      .select('*, categoria:categorias(*)')
+      .eq('usuario_id', user.id),
     
     supabase
       .from('sessoes_pomodoro')
       .select('*')
-      .eq('user_id', user.id)
-      .gte('completed_at', seteDiasAtras.toISOString())
-      .order('completed_at', { ascending: true }),
+      .eq('usuario_id', user.id)
+      .gte('concluido_em', seteDiasAtras.toISOString())
+      .order('concluido_em', { ascending: true }),
 
     supabase
-      .from('categories')
+      .from('categorias')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('usuario_id', user.id),
   ])
 
-  // 3. Casting e Preparação
-  const tasks = (tasksRes.data || []) as Tarefa[]
-  const sessions = (sessionsRes.data || []) as PomodoroSession[]
-  const categories = (categoriesRes.data || []) as Categoria[]
+  const tasks = (tasksRes.data || []).map(normalizeTask) as Tarefa[]
+  const sessions = (sessionsRes.data || []).map(normalizePomodoroSession) as PomodoroSession[]
+  const categories = (categoriesRes.data || []).map(normalizeCategory) as Categoria[]
 
   return (
     <div className="h-full flex flex-col space-y-8 pb-10 animate-in fade-in slide-in-from-bottom-4 duration-700">

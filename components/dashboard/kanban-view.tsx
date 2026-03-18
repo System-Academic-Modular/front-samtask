@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import confetti from 'canvas-confetti'
 import {
   Brain,
@@ -13,10 +14,12 @@ import {
   Target,
   Trash2,
   RefreshCw,
-  Zap
+  Zap,
+  Settings2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { deleteTask, updateTask } from '@/lib/actions/tasks'
+import { saveKanbanColumns } from '@/lib/actions/kanban-columns'
 import { QuickAddTask } from '@/components/dashboard/quick-add-task'
 import { TaskEditDialog } from '@/components/dashboard/task-edit-dialog'
 import { ZenMode } from '@/components/dashboard/zen-mode'
@@ -30,17 +33,28 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import type { Categoria, Tarefa, StatusTarefa, MembroEquipe } from '@/lib/types'
 
 interface KanbanViewProps {
   tasks: Tarefa[]
   categories: Categoria[]
+  kanbanColumns?: Array<{ status: StatusTarefa; titulo: string; ordem: number }>
   selectedTeamId?: string | null
   teamMembers?: MembroEquipe[]
 }
 
-const columns: { id: StatusTarefa; title: string; className: string; icon: React.ReactNode }[] = [
+type ColumnVisual = { id: StatusTarefa; title: string; className: string; icon: React.ReactNode }
+
+const defaultColumns: ColumnVisual[] = [
   { id: 'pendente', title: 'A FAZER', className: 'border-slate-500/20 bg-slate-500/5', icon: <Target className="w-4 h-4 text-slate-400" /> },
   { id: 'em_progresso', title: 'EM FOCO', className: 'border-brand-violet/30 bg-brand-violet/10', icon: <Zap className="w-4 h-4 text-brand-violet animate-pulse" /> },
   { id: 'revisao', title: 'REVISÃO', className: 'border-emerald-500/30 bg-emerald-500/5', icon: <RefreshCw className="w-4 h-4 text-emerald-400" /> },
@@ -64,18 +78,63 @@ function priorityDot(priority: Tarefa['prioridade']) {
 export function KanbanView({
   tasks,
   categories,
+  kanbanColumns,
   selectedTeamId,
   teamMembers = [],
 }: KanbanViewProps) {
+  const router = useRouter()
   const [editingTask, setEditingTask] = useState<Tarefa | null>(null)
   const [zenTask, setZenTask] = useState<Tarefa | null>(null)
   const [draggedTask, setDraggedTask] = useState<Tarefa | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [isColumnsDialogOpen, setIsColumnsDialogOpen] = useState(false)
+  const [columnsDraft, setColumnsDraft] = useState<Array<{ status: StatusTarefa; title: string }>>([])
+  const [isSavingColumns, startSavingColumns] = useTransition()
 
   const memberByUserId = useMemo(
     () => new Map(teamMembers.map((member) => [member.usuario_id, member])),
     [teamMembers],
   )
+
+  const columns = useMemo<ColumnVisual[]>(() => {
+    const visualsByStatus = new Map(defaultColumns.map((column) => [column.id, column]))
+    if (!kanbanColumns?.length) return defaultColumns
+
+    return [...kanbanColumns]
+      .sort((a, b) => a.ordem - b.ordem)
+      .map((column) => {
+        const visual = visualsByStatus.get(column.status) || visualsByStatus.get('pendente')!
+        return {
+          ...visual,
+          id: column.status,
+          title: (column.titulo || visual.title).toUpperCase(),
+        }
+      })
+  }, [kanbanColumns])
+
+  useEffect(() => {
+    setColumnsDraft(columns.map((column) => ({ status: column.id, title: column.title })))
+  }, [columns])
+
+  function saveColumns() {
+    startSavingColumns(async () => {
+      const payload = columnsDraft.map((column, index) => ({
+        status: column.status,
+        titulo: column.title.trim() || column.status,
+        ordem: index,
+      }))
+
+      const result = await saveKanbanColumns(payload)
+      if (result.error) {
+        toast.error('Erro ao salvar colunas', { description: result.error })
+        return
+      }
+
+      toast.success('Colunas do Kanban atualizadas.')
+      setIsColumnsDialogOpen(false)
+      router.refresh()
+    })
+  }
 
   const tasksByColumn = useMemo(() => {
     const groups: Record<StatusTarefa, Tarefa[]> = {
@@ -173,6 +232,15 @@ export function KanbanView({
               : 'CONTROLE DE PIPELINE NEURAL.'}
           </p>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setIsColumnsDialogOpen(true)}
+          className="h-9 border-white/10 bg-black/40 hover:bg-white/10 text-[10px] uppercase tracking-widest font-black"
+        >
+          <Settings2 className="w-3.5 h-3.5 mr-2" />
+          Colunas
+        </Button>
       </div>
 
       <div className="relative z-10">
@@ -337,6 +405,55 @@ export function KanbanView({
         ))}
       </div>
 
+      <Dialog open={isColumnsDialogOpen} onOpenChange={setIsColumnsDialogOpen}>
+        <DialogContent className="sm:max-w-[520px] bg-[#09090b]/95 border-white/10">
+          <DialogHeader>
+            <DialogTitle className="text-white text-sm uppercase tracking-widest">Gerenciar colunas</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {columnsDraft.map((column, index) => (
+              <div key={column.status} className="grid grid-cols-[120px_1fr] items-center gap-3">
+                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {column.status.replace('_', ' ')}
+                </Label>
+                <Input
+                  value={column.title}
+                  onChange={(event) => {
+                    const value = event.target.value
+                    setColumnsDraft((prev) =>
+                      prev.map((item, itemIndex) =>
+                        itemIndex === index ? { ...item, title: value } : item,
+                      ),
+                    )
+                  }}
+                  className="bg-black/40 border-white/10"
+                  placeholder="Titulo da coluna"
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setIsColumnsDialogOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={saveColumns}
+              disabled={isSavingColumns}
+              className="bg-brand-violet hover:bg-brand-violet/90"
+            >
+              {isSavingColumns ? 'Salvando...' : 'Salvar colunas'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <TaskEditDialog
         task={editingTask}
         categories={categories}
@@ -345,7 +462,7 @@ export function KanbanView({
         onOpenChange={(open) => !open && setEditingTask(null)}
       />
 
-      <ZenMode isOpen={Boolean(zenTask)} onClose={() => setZenTask(null)} taskTitle={zenTask?.titulo} />
+      <ZenMode isOpen={Boolean(zenTask)} onClose={() => setZenTask(null)} task={zenTask} />
     </div>
   )
 }

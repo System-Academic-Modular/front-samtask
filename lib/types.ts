@@ -123,6 +123,16 @@ export interface Tarefa {
   subtarefas?: Tarefa[]
 }
 
+export interface ColunaKanban {
+  id: string
+  usuario_id: string
+  status: StatusTarefa
+  titulo: string
+  ordem: number
+  criado_em: string
+  atualizado_em?: string
+}
+
 export interface SessaoPomodoro {
   id: string
   usuario_id: string
@@ -185,3 +195,4 @@ export type TaskStatus = StatusTarefa
 export type TaskPriority = PrioridadeTarefa
 export type PomodoroSession = SessaoPomodoro
 export type PomodoroType = TipoPomodoro
+export type KanbanColumn = ColunaKanban

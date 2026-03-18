@@ -26,13 +26,14 @@ import type { Tarefa } from '@/lib/types'
 interface ZenModeProps {
   isOpen: boolean
   onClose: () => void
-  task: Tarefa | null
+  task?: Tarefa | null
+  taskTitle?: string
 }
 
 const DURACAO_FOCO = 25 * 60
 const PROTOCOLO_RESPIRO = 3 * 60
 
-export function ZenMode({ isOpen, onClose, task }: ZenModeProps) {
+export function ZenMode({ isOpen, onClose, task = null, taskTitle }: ZenModeProps) {
   const [mounted, setMounted] = useState(false)
   const [timeLeft, setTimeLeft] = useState(DURACAO_FOCO)
   const [isRunning, setIsRunning] = useState(false)
@@ -125,7 +126,10 @@ export function ZenMode({ isOpen, onClose, task }: ZenModeProps) {
     toast.info('Protocolo de Respiro Ativado', { description: 'Inspirar... Segurar... Expirar...' })
   }
 
-  if (!isOpen || !mounted || !task) return null
+  if (!isOpen || !mounted || (!task && !taskTitle)) return null
+
+  const title = task?.titulo || taskTitle || 'Sessao de foco'
+  const cognitiveLoad = task?.carga_mental ?? 3
 
   // Cálculo do progresso para o círculo visual
   const progressOffset = ((DURACAO_FOCO - timeLeft) / DURACAO_FOCO) * 100
@@ -173,9 +177,9 @@ export function ZenMode({ isOpen, onClose, task }: ZenModeProps) {
           isEmergencyBreathing ? "bg-sky-100 border-sky-300 text-sky-900" : "bg-brand-violet/10 border-brand-violet/20 text-white"
         )}>
           <Brain className="w-4 h-4" />
-          <span className="text-sm font-black italic uppercase tracking-wider">{task.titulo}</span>
+          <span className="text-sm font-black italic uppercase tracking-wider">{title}</span>
           <div className="w-px h-4 bg-current/20 mx-2" />
-          <span className="text-xs font-bold opacity-70">Carga {task.carga_mental}</span>
+          <span className="text-xs font-bold opacity-70">Carga {cognitiveLoad}</span>
         </div>
 
         {/* Timer Gigante com Circle Progress */}

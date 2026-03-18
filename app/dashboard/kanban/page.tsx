@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { KanbanView } from '@/components/dashboard/kanban-view'
 import type { Task, Category, TeamMember } from '@/lib/types'
+import { normalizeCategory, normalizeTask } from '@/lib/normalizers'
+import { DEFAULT_KANBAN_COLUMNS } from '@/lib/actions/kanban-columns'
 
 interface KanbanPageProps {
   searchParams: Promise<{
@@ -15,73 +17,89 @@ export default async function KanbanPage(props: KanbanPageProps) {
 
   if (!user) return null
 
-  // Preparamos as queries para disparar em paralelo (Performance Boost)
   const tasksQuery = supabase
-    .from('tasks')
+    .from('tarefas')
     .select(`
       *,
-      category:categories(*)
+      categoria:categorias(*),
+      atribuido:perfis!atribuido_a(id, nome_completo, avatar_url)
     `)
-    .is('parent_id', null) // Apenas tarefas principais no board
-    .order('posicao', { ascending: true }) // Ajustado: position -> posicao
-    .order('created_at', { ascending: false })
+    .is('tarefa_pai_id', null)
+    .order('criado_em', { ascending: false })
 
   if (teamId) {
-    tasksQuery.eq('team_id', teamId)
+    tasksQuery.eq('equipe_id', teamId)
   } else {
-    tasksQuery.eq('user_id', user.id).is('team_id', null)
+    tasksQuery.eq('usuario_id', user.id).is('equipe_id', null)
   }
 
   const categoriesQuery = supabase
-    .from('categories')
+    .from('categorias')
     .select('*')
-    .eq('user_id', user.id)
-    .order('nome') // Ajustado: name -> nome
+    .eq('usuario_id', user.id)
+    .order('nome')
 
-  // Execução paralela
-  const [tasksRes, categoriesRes] = await Promise.all([
+  const kanbanColumnsQuery = supabase
+    .from('kanban_colunas')
+    .select('*')
+    .eq('usuario_id', user.id)
+    .order('ordem', { ascending: true })
+
+  const [tasksRes, categoriesRes, kanbanColumnsRes] = await Promise.all([
     tasksQuery,
-    categoriesQuery
+    categoriesQuery,
+    kanbanColumnsQuery,
   ])
 
-  const tasks = (tasksRes.data || []) as Task[]
-  const categories = (categoriesRes.data || []) as Category[]
+  const tasks = (tasksRes.data || []).map(normalizeTask) as Task[]
+  const categories = (categoriesRes.data || []).map(normalizeCategory) as Category[]
+  const kanbanColumns =
+    (kanbanColumnsRes.data && kanbanColumnsRes.data.length > 0)
+      ? kanbanColumnsRes.data
+      : DEFAULT_KANBAN_COLUMNS.map((column) => ({
+          id: `default-${column.status}`,
+          usuario_id: user.id,
+          status: column.status,
+          titulo: column.titulo,
+          ordem: column.ordem,
+          criado_em: new Date().toISOString(),
+        }))
 
-  // Lógica de Membros do Time (Se houver teamId)
   let teamMembers: TeamMember[] = []
 
   if (teamId) {
-    // Buscamos os membros e seus perfis em uma única operação se possível, 
-    // ou mantemos a lógica de mapa para garantir integridade.
     const { data: members } = await supabase
-      .from('team_members')
-      .select('*, profile:profiles(id, full_name, avatar_url)')
-      .eq('team_id', teamId)
+      .from('membros_equipe')
+      .select('id, equipe_id, usuario_id, papel, entrou_em, perfil:perfis(id, nome_completo, avatar_url)')
+      .eq('equipe_id', teamId)
 
     if (members) {
-      teamMembers = members.map(m => ({
-        ...m,
-        profile: m.profile // O Supabase já faz o join aqui
+      teamMembers = members.map((m) => ({
+        id: m.id,
+        equipe_id: m.equipe_id,
+        usuario_id: m.usuario_id,
+        papel: m.papel,
+        entrou_em: m.entrou_em,
+        perfil: Array.isArray(m.perfil) ? m.perfil[0] : m.perfil,
       })) as unknown as TeamMember[]
     }
   }
 
- return (
+  return (
     <div className="h-full flex flex-col overflow-hidden animate-in fade-in duration-700">
-      {/* Container do Kanban */}
       <div className="flex-1 overflow-x-auto custom-scrollbar">
         <KanbanView
           tasks={tasks}
           categories={categories}
+          kanbanColumns={kanbanColumns}
           selectedTeamId={teamId || null}
           teamMembers={teamMembers}
         />
       </div>
-      
-      {/* Footer Técnico - Corrigido */}
+
       <footer className="h-8 flex items-center px-6 border-t border-white/5 bg-black/20 justify-between shrink-0">
         <div className="flex items-center gap-4 text-[9px] font-black uppercase tracking-[0.3em] text-white/20">
-          <span>Board: {teamId ? 'Sincronização de Time' : 'Foco Pessoal'}</span>
+          <span>Board: {teamId ? 'Sincronizacao de Time' : 'Foco Pessoal'}</span>
           <span className="w-1 h-1 rounded-full bg-white/10" />
           <span>{tasks.length} Objetivos Ativos</span>
         </div>

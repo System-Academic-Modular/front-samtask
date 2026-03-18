@@ -6,11 +6,11 @@ import { subDays, startOfDay, endOfDay } from 'date-fns'
 import { TimelineView } from '@/components/dashboard/timeline-view'
 import { EmotionalCheckinPrompt } from '@/components/dashboard/emotional-checkin-prompt'
 import { Progress } from '@/components/ui/progress'
-import { Separator } from '@/components/ui/separator'
 import { createClient } from '@/lib/supabase/server'
 import { getEffortProgress } from '@/lib/effort'
 import { cn } from '@/lib/utils'
-import type { Tarefa, Categoria, Perfil, SessaoPomodoro } from '@/lib/types'
+import type { Tarefa, Categoria } from '@/lib/types'
+import { normalizeCategory, normalizeTask } from '@/lib/normalizers'
 
 // Lógica de Streak otimizada para o banco em português
 async function calcularSequenciaReal(
@@ -50,7 +50,6 @@ export default async function DashboardPage() {
   const saudacao = agora.getHours() < 12 ? 'Bom dia' : agora.getHours() < 18 ? 'Boa tarde' : 'Boa noite'
   const labelData = agora.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
 
-  // 1. Busca Multi-Thread de Dados
   const [
     perfilRes,
     tarefasTimelineRes,
@@ -61,38 +60,37 @@ export default async function DashboardPage() {
     sessoesStreakRes,
     maestriaRes,
   ] = await Promise.all([
-    supabase.from('profiles').select('nome_completo').eq('id', user.id).maybeSingle(),
-    supabase.from('tasks')
-      .select('*, category:categories(*)')
-      .eq('user_id', user.id)
+    supabase.from('perfis').select('nome_completo').eq('id', user.id).maybeSingle(),
+    supabase.from('tarefas')
+      .select('*, categoria:categorias(*)')
+      .eq('usuario_id', user.id)
       .is('tarefa_pai_id', null)
       .neq('status', 'concluida')
       .order('data_vencimento', { ascending: true, nullsFirst: false }),
-    supabase.from('categories').select('*').eq('user_id', user.id).order('nome'),
-    supabase.from('emotional_checkins').select('*').eq('usuario_id', user.id).gte('criado_em', inicioHoje.toISOString()).maybeSingle(),
-    supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('status', 'concluida'),
-    supabase.from('tasks').select('status, carga_mental, minutos_estimados, data_vencimento').eq('user_id', user.id).gte('data_vencimento', inicioHoje.toISOString()).lt('data_vencimento', fimHoje.toISOString()),
+    supabase.from('categorias').select('*').eq('usuario_id', user.id).order('nome'),
+    supabase.from('checkins_emocionais').select('*').eq('usuario_id', user.id).gte('criado_em', inicioHoje.toISOString()).maybeSingle(),
+    supabase.from('tarefas').select('id', { count: 'exact', head: true }).eq('usuario_id', user.id).eq('status', 'concluida'),
+    supabase.from('tarefas').select('status, carga_mental, minutos_estimados, data_vencimento').eq('usuario_id', user.id).gte('data_vencimento', inicioHoje.toISOString()).lt('data_vencimento', fimHoje.toISOString()),
     supabase.from('sessoes_pomodoro').select('concluido_em').eq('usuario_id', user.id).eq('tipo', 'foco').order('concluido_em', { ascending: false }).limit(100),
-    supabase.from('mastery_scores').select('*, category:categories(*)').eq('usuario_id', user.id).order('score', { ascending: false }),
+    supabase.from('mastery_status').select('*').eq('user_id', user.id).order('score', { ascending: false }),
   ])
 
-  // 2. Processamento de Identidade
-  const nomeCompleto = perfilRes.data?.nome_completo || ''
+  const nomeCompleto = perfilRes.data?.nome_completo || (perfilRes.data as any)?.full_name || ''
   const primeiroNome = nomeCompleto.split(' ')[0] || 'Explorador'
 
-  // 3. Processamento de Métricas
-  const tarefasTimeline = (tarefasTimelineRes.data || []) as Tarefa[]
+  const tarefasTimeline = (tarefasTimelineRes.data || []).map(normalizeTask) as Tarefa[]
+  const categorias = (categoriasRes.data || []).map(normalizeCategory) as Categoria[]
   const totalConcluidas = totalConcluidasRes.count || 0
   const streak = await calcularSequenciaReal(sessoesStreakRes.data || [])
   const progressoEsforco = getEffortProgress(esforcoHojeRes.data || [])
 
-  // 4. Processamento do Mapa de Retenção
   const dadosMaestria = (maestriaRes.data || []).map((m: any) => {
-    const ultimaSessao = m.data_ultimo_estudo ? new Date(m.data_ultimo_estudo) : null
+    const lastStudy = m.data_ultimo_estudo || m.last_study_date || m.last_session_at || null
+    const ultimaSessao = lastStudy ? new Date(lastStudy) : null
     const diasSemEstudo = ultimaSessao ? Math.floor((agora.getTime() - ultimaSessao.getTime()) / (1000 * 60 * 60 * 24)) : 999
     return {
-      score: Number(m.pontuacao || 0),
-      categoria: m.category,
+      score: Number(m.pontuacao || m.score || 0),
+      categoria: m.categoria || m.category || (m.category_name ? { nome: m.category_name, cor: m.category_color } : null),
       emRisco: diasSemEstudo >= 3,
       diasSemEstudo
     }
@@ -115,14 +113,14 @@ export default async function DashboardPage() {
       {/* MÉTRICAS DE OPERAÇÃO */}
       <section className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {[
-          { label: 'Para Hoje', valor: tarefasTimeline.length, icon: Target, color: 'brand-violet', sub: 'Tasks' },
-          { label: 'Finalizadas', valor: totalConcluidas, icon: CheckCircle2, color: 'emerald-500', sub: 'Total' },
-          { label: 'Sequência', valor: streak, icon: Flame, color: 'orange-500', sub: 'Dias', pulse: streak > 0 },
-          { label: 'Carga Mental', valor: `${progressoEsforco.percentage}%`, icon: Zap, color: 'sky-500', sub: 'XP', progress: true }
+          { label: 'Para Hoje', valor: tarefasTimeline.length, icon: Target, hoverBorder: 'hover:border-brand-violet/30', sub: 'Tasks' },
+          { label: 'Finalizadas', valor: totalConcluidas, icon: CheckCircle2, hoverBorder: 'hover:border-emerald-500/30', sub: 'Total' },
+          { label: 'Sequência', valor: streak, icon: Flame, hoverBorder: 'hover:border-orange-500/30', sub: 'Dias', pulse: streak > 0 },
+          { label: 'Carga Mental', valor: `${progressoEsforco.percentage}%`, icon: Zap, hoverBorder: 'hover:border-sky-500/30', sub: 'XP', progress: true }
         ].map((m, i) => (
           <div key={i} className={cn(
             "rounded-[2rem] border border-white/5 bg-black/40 p-6 backdrop-blur-xl transition-all hover:scale-[1.02] active:scale-[0.98]",
-            `hover:border-${m.color}/30`
+            m.hoverBorder
           )}>
             <div className="mb-4 flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
               <m.icon className={cn("h-4 w-4", m.pulse && "animate-pulse text-orange-500")} /> {m.label}
@@ -200,7 +198,7 @@ export default async function DashboardPage() {
       {/* TIMELINE DE OPERAÇÕES */}
       <section className="min-h-[500px] bg-black/10 rounded-[3rem] p-1 border border-white/5">
         {tarefasTimeline.length > 0 ? (
-          <TimelineView tasks={tarefasTimeline} categories={categoriasRes.data || []} />
+          <TimelineView tasks={tarefasTimeline} categories={categorias} />
         ) : (
           <div className="flex h-80 flex-col items-center justify-center p-8 text-center bg-cyber-grid bg-[length:30px_30px] opacity-40">
              <div className="p-5 bg-white/5 rounded-full mb-4 border border-white/10">

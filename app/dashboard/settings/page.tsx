@@ -2,8 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { SettingsView } from '@/components/dashboard/settings-view'
 import { Settings2, ShieldCheck, Zap } from 'lucide-react'
-// Trocado UsuarioProfile por Perfil e adicionado Integracao
-import type { Categoria, Perfil, Integracao } from '@/lib/types'
+import type { Categoria, Perfil } from '@/lib/types'
+import { normalizeCategory, normalizeProfile, normalizeIntegration } from '@/lib/normalizers'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -14,7 +14,7 @@ export default async function SettingsPage() {
   // Performance de Elite: Buscas paralelas sincronizadas com o banco em PT
   const [profileRes, categoriesRes, integrationsRes] = await Promise.all([
     supabase
-      .from('profiles')
+      .from('perfis')
       .select('*')
       .eq('id', user.id)
       .single(),
@@ -32,9 +32,11 @@ export default async function SettingsPage() {
   ])
 
   // Casting para 'Perfil' resolve o erro ts(2739) pois inclui XP, Nível, etc.
-  const profile = profileRes.data as Perfil
-  const categories = (categoriesRes.data || []) as Categoria[]
-  const integrations = (integrationsRes.data || []) as Integracao[]
+  const profile = (profileRes.data ? normalizeProfile(profileRes.data) : null) as Perfil | null
+  const categories = (categoriesRes.data || []).map(normalizeCategory) as Categoria[]
+  const integrations = (integrationsRes.data || []).map((integration) => ({
+    provider: normalizeIntegration(integration).provedor,
+  }))
 
   return (
     <div className="h-full flex flex-col space-y-8 pb-10 animate-in fade-in slide-in-from-bottom-4 duration-700">

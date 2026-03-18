@@ -3,6 +3,7 @@ import { ProjectTree } from '@/components/dashboard/project-tree'
 import { HeaderActions } from '@/components/dashboard/header-actions'
 import { Layers } from 'lucide-react'
 import type { Task, Category } from '@/lib/types'
+import { normalizeCategory, normalizeTask } from '@/lib/normalizers'
 
 export default async function ProjectsPage() {
   const supabase = await createClient()
@@ -10,28 +11,25 @@ export default async function ProjectsPage() {
 
   if (!user) return null
 
-  // 1. Busca Tarefas e Categorias
-  // Nota: Na Árvore de Projetos, geralmente queremos ver o que já foi feito para 
-  // entender o progresso do projeto, mas aqui filtramos 'concluida' para foco total.
   const [tasksResult, categoriesResult] = await Promise.all([
-    supabase.from('tasks')
-      .select(`*, category:categories(*)`)
-      .eq('user_id', user.id)
-      .neq('status', 'concluida') // Sincronizado: 'done' -> 'concluida'
-      .order('created_at', { ascending: true }),
-    
-    supabase.from('categories')
+    supabase
+      .from('tarefas')
+      .select('*, categoria:categorias(*)')
+      .eq('usuario_id', user.id)
+      .neq('status', 'concluida')
+      .order('criado_em', { ascending: true }),
+    supabase
+      .from('categorias')
       .select('*')
-      .eq('user_id', user.id)
-      .order('nome', { ascending: true })
+      .eq('usuario_id', user.id)
+      .order('nome', { ascending: true }),
   ])
 
-  const tasks = (tasksResult.data || []) as Task[]
-  const categories = (categoriesResult.data || []) as Category[]
+  const tasks = (tasksResult.data || []).map(normalizeTask) as Task[]
+  const categories = (categoriesResult.data || []).map(normalizeCategory) as Category[]
 
   return (
     <div className="h-full flex flex-col space-y-6 pb-24 animate-in fade-in slide-in-from-bottom-2 duration-700">
-      {/* Background FX: Camadas Hierárquicas */}
       <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-brand-violet/5 blur-[150px] rounded-full pointer-events-none -z-10" />
 
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0 relative z-10 px-1">
@@ -41,7 +39,7 @@ export default async function ProjectsPage() {
             Arquitetura de Projetos
           </h1>
           <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-muted-foreground mt-1 ml-1">
-            Mapeamento de dependências e quebra de objetivos complexos.
+            Mapeamento de dependencias e quebra de objetivos complexos.
           </p>
         </div>
         <div className="bg-card/30 p-1 rounded-2xl border border-white/5 backdrop-blur-md">
@@ -49,17 +47,13 @@ export default async function ProjectsPage() {
         </div>
       </header>
 
-      {/* Container da Árvore com Glassmorphism */}
       <div className="flex-1 min-h-0 relative z-10 bg-[#0c0c0e]/50 border border-white/5 rounded-[32px] overflow-hidden backdrop-blur-xl shadow-2xl flex flex-col">
         <div className="absolute inset-0 bg-cyber-grid opacity-[0.02] pointer-events-none" />
-        
-        {/* Área de Scroll Customizada */}
         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
           <ProjectTree tasks={tasks} categories={categories} />
         </div>
       </div>
 
-      {/* Identidade de Versão */}
       <div className="flex justify-between items-center px-4 text-[8px] font-black uppercase tracking-[0.5em] text-white/10">
         <span>Hierarchy Engine v4.0</span>
         <span>FocusOS Tactical System</span>

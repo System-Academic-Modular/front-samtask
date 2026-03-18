@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
-import { CalendarIcon, Loader2, Flag, Circle, Clock, Brain } from 'lucide-react'
+import { CalendarIcon, Loader2, Flag, Circle, Clock, Brain, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -171,6 +171,7 @@ export function TaskEditDialog({
                 <SelectContent className="bg-[#18181b] border-white/10 text-white">
                   <SelectItem value="pendente"><div className="flex items-center"><Circle className="w-3 h-3 mr-2 text-slate-400" /> A Fazer</div></SelectItem>
                   <SelectItem value="em_progresso"><div className="flex items-center"><Circle className="w-3 h-3 mr-2 text-brand-violet fill-brand-violet/20" /> Em Foco</div></SelectItem>
+                  <SelectItem value="revisao"><div className="flex items-center"><RefreshCw className="w-3 h-3 mr-2 text-brand-emerald" /> Revisao</div></SelectItem>
                   <SelectItem value="concluida"><div className="flex items-center"><Circle className="w-3 h-3 mr-2 text-brand-emerald fill-brand-emerald" /> Concluída</div></SelectItem>
                 </SelectContent>
               </Select>

@@ -1,7 +1,6 @@
 import { google } from 'googleapis'
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { redirect } from 'next/navigation'
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
@@ -33,21 +32,41 @@ export async function GET(request: Request) {
     // Troca o código pelos tokens
     const { tokens } = await oauth2Client.getToken(code)
 
-    // Salva no Supabase
-    const { error: dbError } = await supabase
-      .from('integrations')
-      .upsert({
-        user_id: user.id,
-        provider: 'google_calendar',
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token, // Guarde isso com carinho!
-        expires_at: tokens.expiry_date, // Data em ms
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'user_id, provider' })
+    const nowIso = new Date().toISOString()
 
-    if (dbError) {
-      console.error('Erro ao salvar tokens:', dbError)
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=db_save_failed`)
+    const savePt = await supabase
+      .from('integracoes')
+      .upsert(
+        {
+          usuario_id: user.id,
+          provedor: 'google_calendar',
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
+          expira_em: tokens.expiry_date,
+          atualizado_em: nowIso,
+        },
+        { onConflict: 'usuario_id,provedor' },
+      )
+
+    if (savePt.error) {
+      const saveEn = await supabase
+        .from('integrations')
+        .upsert(
+          {
+            user_id: user.id,
+            provider: 'google_calendar',
+            access_token: tokens.access_token,
+            refresh_token: tokens.refresh_token,
+            expires_at: tokens.expiry_date,
+            updated_at: nowIso,
+          },
+          { onConflict: 'user_id,provider' },
+        )
+
+      if (saveEn.error) {
+        console.error('Erro ao salvar tokens:', saveEn.error)
+        return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=db_save_failed`)
+      }
     }
 
     // Sucesso! Volta pro dashboard com flag de sucesso
